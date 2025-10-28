@@ -6,50 +6,42 @@ import (
 	"time"
 
 	"github.com/rd2w/go-notes/internal/model"
+	"github.com/rd2w/go-notes/internal/repository"
+	"github.com/rd2w/go-notes/internal/service"
 )
 
 func main() {
-	note := model.NewNote("Первая заметка", "Это содержимое моей первой заметки")
-	displayNoteInfo("Исходная заметка:", note)
-	updateNote(note, "Обновленный заголовок", "Обновленное содержимое")
-	displayNoteInfo("После обновления:", note)
+	repo := repository.NewRepository()
+	svc := service.NewService(repo)
+
+	log.Println("Запуск генерации тестовых данных...")
+	svc.StartDataGeneration(1 * time.Second)
+
+	fmt.Printf("\n=== РЕЗУЛЬТАТЫ ===\n")
+	fmt.Printf("Всего заметок создано: %d\n", repo.GetNotesCount())
+
+	notes := repo.GetAllNotes()
+	for i, note := range notes {
+		displayNoteInfo(i, note)
+	}
 
 	log.Println("Приложение \"Заметки\" успешно завершило выполнение программы!")
 }
 
 // displayNoteInfo отображает информацию о заметке в форматированном виде
-func displayNoteInfo(header string, note *model.Note) {
+func displayNoteInfo(count int, note *model.Note) {
 	if note == nil {
 		fmt.Println("Ошибка: заметка не существует")
 		return
 	}
 
-	fmt.Println(header)
+	fmt.Printf("\nЗаметка %d:\n", count+1)
+	fmt.Printf("  ID: %s\n", note.GetID())
 	fmt.Printf("  Заголовок: %s\n", note.GetTitle())
 	fmt.Printf("  Содержимое: %s\n", note.GetContent())
 	fmt.Printf("  Создана: %s\n", formatTime(note.GetCreatedAt()))
 	fmt.Printf("  Обновлена: %s\n", formatTime(note.GetUpdatedAt()))
 	fmt.Println()
-}
-
-// updateNote обновляет заголовок и содержимое заметки
-func updateNote(note *model.Note, newTitle, newContent string) {
-	if note == nil {
-		fmt.Println("Ошибка: нельзя обновить несуществующую заметку!")
-		return
-	}
-
-	fmt.Println("Обновление заметки...")
-
-	if newTitle != "" {
-		note.SetTitle(newTitle)
-	}
-
-	if newContent != "" {
-		note.SetContent(newContent)
-	}
-
-	fmt.Printf("✅ Заметка успешно обновлена\n\n")
 }
 
 // formatTime форматирует время в едином стиле

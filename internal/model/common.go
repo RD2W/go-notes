@@ -2,6 +2,12 @@ package model
 
 import "time"
 
+// Entity интерфейс, который должны реализовывать все сущности
+type Entity interface {
+	GetID() string
+	GetType() string
+}
+
 // TimeFields содержит общие временные метки для сущностей
 type TimeFields struct {
 	createdAt time.Time

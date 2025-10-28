@@ -1,6 +1,8 @@
 package model
 
 import (
+	"encoding/base64"
+	"fmt"
 	"testing"
 	"time"
 )
@@ -227,5 +229,144 @@ func TestMultipleNotes(t *testing.T) {
 
 	if note1.GetTitle() != note1OriginalTitle {
 		t.Error("Modifying one note should not affect another")
+	}
+}
+
+func TestNoteIDGeneration(t *testing.T) {
+	// Создаем несколько заметок и проверяем что у них разные ID
+	note1 := NewNote("Title 1", "Content 1")
+	note2 := NewNote("Title 2", "Content 2")
+	note3 := NewNote("Title 3", "Content 3")
+
+	// Проверяем что ID не пустые
+	if note1.GetID() == "" {
+		t.Error("Note ID should not be empty")
+	}
+
+	if note2.GetID() == "" {
+		t.Error("Note ID should not be empty")
+	}
+
+	if note3.GetID() == "" {
+		t.Error("Note ID should not be empty")
+	}
+
+	// Проверяем что все ID уникальны
+	ids := make(map[string]bool)
+	ids[note1.GetID()] = true
+	ids[note2.GetID()] = true
+	ids[note3.GetID()] = true
+
+	if len(ids) != 3 {
+		t.Error("All note IDs should be unique")
+	}
+
+	// Проверяем формат ID (base64 URL encoding)
+	id := note1.GetID()
+	_, err := base64.URLEncoding.DecodeString(id)
+	if err != nil {
+		t.Errorf("Note ID should be valid base64 URL encoding: %v", err)
+	}
+}
+
+func TestNoteEntityInterface(t *testing.T) {
+	note := NewNote("Test Note", "Test Content")
+
+	// Проверяем метод GetID
+	id := note.GetID()
+	if id == "" {
+		t.Error("GetID should return non-empty string")
+	}
+
+	// Проверяем метод GetType
+	entityType := note.GetType()
+	if entityType != "note" {
+		t.Errorf("GetType should return 'note', got %q", entityType)
+	}
+
+	// Проверяем что методы возвращают консистентные данные
+	if note.GetID() != id {
+		t.Error("GetID should return consistent value")
+	}
+
+	if note.GetType() != entityType {
+		t.Error("GetType should return consistent value")
+	}
+}
+
+func TestNoteImmutabilityOfID(t *testing.T) {
+	note := NewNote("Original Title", "Original Content")
+	originalID := note.GetID()
+
+	// Изменяем другие поля
+	note.SetTitle("New Title")
+	note.SetContent("New Content")
+
+	// ID должен остаться неизменным
+	if note.GetID() != originalID {
+		t.Error("Note ID should be immutable after creation")
+	}
+
+	// Создаем новую заметку и проверяем что ID другой
+	newNote := NewNote("Another Title", "Another Content")
+	if newNote.GetID() == originalID {
+		t.Error("Different notes should have different IDs")
+	}
+}
+
+func TestNoteIDLengthAndFormat(t *testing.T) {
+	note := NewNote("Test", "Content")
+	id := note.GetID()
+
+	// Проверяем длину ID (base64 от 8 байт = 11 символов без padding или 12 с padding)
+	if len(id) != 11 && len(id) != 12 {
+		t.Errorf("Expected ID length 11 or 12, got %d for ID %q", len(id), id)
+	}
+
+	// Проверяем что ID состоит из валидных base64 URL символов
+	isValidBase64URLChar := func(char rune) bool {
+		return (char >= 'A' && char <= 'Z') ||
+			(char >= 'a' && char <= 'z') ||
+			(char >= '0' && char <= '9') ||
+			char == '-' || char == '_' || char == '='
+	}
+
+	for _, char := range id {
+		if !isValidBase64URLChar(char) {
+			t.Errorf("ID contains invalid base64 URL character: %c", char)
+		}
+	}
+}
+
+func TestMultipleNoteCreationConsistency(t *testing.T) {
+	// Создаем несколько заметок и проверяем целостность данных
+	notes := make([]*Note, 10)
+	for i := 0; i < 10; i++ {
+		notes[i] = NewNote(
+			fmt.Sprintf("Note %d", i),
+			fmt.Sprintf("Content %d", i),
+		)
+	}
+
+	for i, note := range notes {
+		// Проверяем что все поля установлены корректно
+		expectedTitle := fmt.Sprintf("Note %d", i)
+		expectedContent := fmt.Sprintf("Content %d", i)
+
+		if note.GetTitle() != expectedTitle {
+			t.Errorf("Note %d: expected title %q, got %q", i, expectedTitle, note.GetTitle())
+		}
+
+		if note.GetContent() != expectedContent {
+			t.Errorf("Note %d: expected content %q, got %q", i, expectedContent, note.GetContent())
+		}
+
+		if note.GetID() == "" {
+			t.Errorf("Note %d: ID should not be empty", i)
+		}
+
+		if note.GetType() != "note" {
+			t.Errorf("Note %d: type should be 'note', got %q", i, note.GetType())
+		}
 	}
 }
