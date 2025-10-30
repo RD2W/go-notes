@@ -7,6 +7,12 @@ import (
 	"github.com/rd2w/go-notes/internal/model"
 )
 
+// Entity интерфейс, который должны реализовывать все сущности
+type Entity interface {
+	GetID() string
+	GetType() string
+}
+
 // Repository управляет хранением различных сущностей
 type Repository struct {
 	notes []*model.Note
@@ -21,7 +27,7 @@ func NewRepository() *Repository {
 }
 
 // Save принимает интерфейс Entity и сохраняет в соответствующий слайс
-func (r *Repository) Save(entity model.Entity) error {
+func (r *Repository) Save(entity Entity) error {
 	// Проверяем тип сущности и сохраняем в соответствующий слайс
 	switch entity := entity.(type) {
 	case *model.Note:
