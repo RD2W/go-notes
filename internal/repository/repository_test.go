@@ -1,8 +1,8 @@
 package repository
 
 import (
+	"bytes"
 	"log"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -12,10 +12,28 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// safeBuffer потокобезопасный буфер для логов
+type safeBuffer struct {
+	buf bytes.Buffer
+	mu  sync.RWMutex
+}
+
+func (s *safeBuffer) Write(p []byte) (n int, err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.buf.Write(p)
+}
+
+func (s *safeBuffer) String() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.buf.String()
+}
+
 // TestRepository_Save тестирует метод Save с различными типами сущностей
 func TestRepository_Save(t *testing.T) {
 	// Перехватываем вывод лога для проверки
-	var buf strings.Builder
+	var buf safeBuffer
 	log.SetOutput(&buf)
 	defer log.SetOutput(log.Writer())
 
@@ -81,7 +99,7 @@ func TestRepository_SaveMultipleNotes(t *testing.T) {
 
 // TestRepository_SaveUnsupportedEntity тестирует обработку неподдерживаемых типов сущностей
 func TestRepository_SaveUnsupportedEntity(t *testing.T) {
-	var buf strings.Builder
+	var buf safeBuffer
 	log.SetOutput(&buf)
 	defer log.SetOutput(log.Writer())
 
@@ -252,7 +270,7 @@ func TestRepository_ConcurrentAccess(t *testing.T) {
 
 // TestRepository_StopWithDone тестирует корректное завершение работы через done канал
 func TestRepository_StopWithDone(t *testing.T) {
-	var buf strings.Builder
+	var buf safeBuffer
 	log.SetOutput(&buf)
 	defer log.SetOutput(log.Writer())
 

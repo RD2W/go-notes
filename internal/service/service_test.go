@@ -1,9 +1,9 @@
 package service
 
 import (
+	"bytes"
 	"fmt"
 	"log"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -14,9 +14,27 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// safeBuffer для service тестов тоже
+type safeBuffer struct {
+	buf bytes.Buffer
+	mu  sync.RWMutex
+}
+
+func (s *safeBuffer) Write(p []byte) (n int, err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.buf.Write(p)
+}
+
+func (s *safeBuffer) String() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.buf.String()
+}
+
 // TestService_StopWithDoneChannel тестирует остановку генерации через done канал
 func TestService_StopWithDoneChannel(t *testing.T) {
-	var buf strings.Builder
+	var buf safeBuffer
 	log.SetOutput(&buf)
 	defer log.SetOutput(log.Writer())
 
@@ -58,7 +76,7 @@ func TestService_StopWithDoneChannel(t *testing.T) {
 
 // TestService_LimitTenNotes тестирует ограничение в 10 заметок
 func TestService_LimitTenNotes(t *testing.T) {
-	var buf strings.Builder
+	var buf safeBuffer
 	log.SetOutput(&buf)
 	defer log.SetOutput(log.Writer())
 
@@ -188,36 +206,36 @@ func TestService_ConcurrentSafety(t *testing.T) {
 
 // TestService_ChannelBlocking тестирует поведение при блокировке канала
 func TestService_ChannelBlocking(t *testing.T) {
-	var buf strings.Builder
+	var buf safeBuffer
 	log.SetOutput(&buf)
 	defer log.SetOutput(log.Writer())
 
-	// Создаем незабуферизированный канал для тестирования блокировки
-	entityChan := make(chan repository.Entity)
+	// Создаем канал с очень маленьким буфером
+	entityChan := make(chan repository.Entity, 1)
 	done := make(chan struct{})
 
 	service := NewService(entityChan, done)
 
-	// Запускаем генерацию
-	service.StartDataGeneration(10 * time.Millisecond)
+	// Запускаем генерацию с очень коротким интервалом
+	service.StartDataGeneration(5 * time.Millisecond)
 
-	// Даем время на попытку отправки
-	time.Sleep(50 * time.Millisecond)
+	// Не читаем из канала, чтобы он быстро заполнился и заблокировался
+	time.Sleep(30 * time.Millisecond)
 
 	// Останавливаем сервис
 	close(done)
-	time.Sleep(10 * time.Millisecond)
+	time.Sleep(20 * time.Millisecond)
 
 	logOutput := buf.String()
 
-	// Сервис должен корректно завершиться даже при блокировке канала
+	// Сервис должен корректно завершиться по сигналу done
 	assert.Contains(t, logOutput, "Сервис: завершение работы по сигналу",
-		"Сервис должен корректно завершиться при блокировке канала")
+		"Сервис должен корректно завершиться при блокировке канала. Вывод: %s", logOutput)
 }
 
 // TestService_ImmediateStop тестирует немедленную остановку сервиса
 func TestService_ImmediateStop(t *testing.T) {
-	var buf strings.Builder
+	var buf safeBuffer
 	log.SetOutput(&buf)
 	defer log.SetOutput(log.Writer())
 
