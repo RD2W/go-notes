@@ -11,61 +11,89 @@ import (
 	"github.com/rd2w/go-notes/internal/service"
 )
 
+// Константы приложения
+const (
+	LoggerInterval        = 200 * time.Millisecond
+	DataGenInterval       = 500 * time.Millisecond
+	AppRunDuration        = 6 * time.Second
+	GracefulShutdownDelay = 100 * time.Millisecond
+
+	EntityChanBuffer = 10
+
+	TimeFormat = "2006-01-02 15:04:05"
+)
+
+// Строковые константы
+const (
+	AppStartMsg         = "Запуск приложения с горутинами и каналами..."
+	DataGenStartMsg     = "Запуск генерации тестовых данных..."
+	AppShutdownMsg      = "Приложение \"Заметки\" успешно завершило выполнение программы!"
+	ResultsHeader       = "\n=== РЕЗУЛЬТАТЫ ===\n"
+	NoteCountMsg        = "Всего заметок создано: %d\n"
+	NoteDoesNotExistMsg = "Ошибка: заметка не существует"
+	NoteHeaderMsg       = "Заметка %d:\n"
+	NoteIDMsg           = "  ID: %s\n"
+	NoteTitleMsg        = "  Заголовок: %s\n"
+	NoteContentMsg      = "  Содержимое: %s\n"
+	NoteCreatedAtMsg    = "  Создана: %s\n"
+	NoteUpdatedAtMsg    = "  Обновлена: %s\n"
+)
+
 func main() {
-	log.Println("Запуск приложения с горутинами и каналами...")
+	log.Println(AppStartMsg)
 	// Создаем каналы для коммуникации
-	entityChan := make(chan repository.Entity, 10)
+	entityChan := make(chan repository.Entity, EntityChanBuffer)
 	done := make(chan struct{})
 
 	// Инициализируем компоненты
 	repo := repository.NewRepository()
 	svc := service.NewService(entityChan, done)
-	newLogger := logger.NewLogger(repo, done, 200*time.Millisecond)
+	newLogger := logger.NewLogger(repo, done, LoggerInterval)
 
 	// Запускаем горутины
 	go repo.Save(entityChan, done) // Репозиторий слушает канал
 	go newLogger.Start()           // Логгер мониторит изменения
 
-	log.Println("Запуск генерации тестовых данных...")
-	svc.StartDataGeneration(500 * time.Millisecond) // Сервис генерирует данные
+	log.Println(DataGenStartMsg)
+	svc.StartDataGeneration(DataGenInterval) // Сервис генерирует данные
 
 	// Ждем некоторое время для демонстрации работы
-	time.Sleep(6 * time.Second)
+	time.Sleep(AppRunDuration)
 
 	// Сигнал завершения всем горутинам
 	close(done)
 
 	// Даем время на корректное завершение
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(GracefulShutdownDelay)
 
-	fmt.Printf("\n=== РЕЗУЛЬТАТЫ ===\n")
-	fmt.Printf("Всего заметок создано: %d\n", repo.GetNotesCount())
+	fmt.Print(ResultsHeader)
+	fmt.Printf(NoteCountMsg, repo.GetNotesCount())
 
 	notes := repo.GetAllNotes()
 	for i, note := range notes {
 		displayNoteInfo(i, note)
 	}
 
-	log.Println("Приложение \"Заметки\" успешно завершило выполнение программы!")
+	log.Println(AppShutdownMsg)
 }
 
 // displayNoteInfo отображает информацию о заметке в форматированном виде
 func displayNoteInfo(count int, note *model.Note) {
 	if note == nil {
-		fmt.Println("Ошибка: заметка не существует")
+		fmt.Println(NoteDoesNotExistMsg)
 		return
 	}
 
-	fmt.Printf("\nЗаметка %d:\n", count+1)
-	fmt.Printf("  ID: %s\n", note.GetID())
-	fmt.Printf("  Заголовок: %s\n", note.GetTitle())
-	fmt.Printf("  Содержимое: %s\n", note.GetContent())
-	fmt.Printf("  Создана: %s\n", formatTime(note.GetCreatedAt()))
-	fmt.Printf("  Обновлена: %s\n", formatTime(note.GetUpdatedAt()))
+	fmt.Printf(NoteHeaderMsg, count+1)
+	fmt.Printf(NoteIDMsg, note.GetID())
+	fmt.Printf(NoteTitleMsg, note.GetTitle())
+	fmt.Printf(NoteContentMsg, note.GetContent())
+	fmt.Printf(NoteCreatedAtMsg, formatTime(note.GetCreatedAt()))
+	fmt.Printf(NoteUpdatedAtMsg, formatTime(note.GetUpdatedAt()))
 	fmt.Println()
 }
 
 // formatTime форматирует время в едином стиле
 func formatTime(t time.Time) string {
-	return t.Format("2006-01-02 15:04:05")
+	return t.Format(TimeFormat)
 }
