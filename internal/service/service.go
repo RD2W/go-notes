@@ -11,48 +11,50 @@ import (
 
 // Service содержит бизнес-логику приложения
 type Service struct {
-	repo *repository.Repository
+	entityChan chan<- repository.Entity
+	done       chan struct{}
 }
 
 // NewService создает новый экземпляр сервиса
-func NewService(repo *repository.Repository) *Service {
+func NewService(entityChan chan<- repository.Entity, done chan struct{}) *Service {
 	return &Service{
-		repo: repo,
+		entityChan: entityChan,
+		done:       done,
 	}
 }
 
 // StartDataGeneration запускает периодическое создание тестовых данных
 func (s *Service) StartDataGeneration(interval time.Duration) {
-	if s.repo == nil {
-		log.Println("Ошибка: репозиторий не инициализирован")
-		return
-	}
+	go func() {
+		noteCounter := 1
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
 
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				title := fmt.Sprintf("Тестовая заметка %d", noteCounter)
+				content := fmt.Sprintf("Это содержимое тестовой заметки номер %d", noteCounter)
 
-	noteCounter := 1
+				note := model.NewNote(title, content)
 
-	for range ticker.C {
-		// Создаем новую заметку
-		title := fmt.Sprintf("Тестовая заметка %d", noteCounter)
-		content := fmt.Sprintf("Это содержимое тестовой заметки номер %d", noteCounter)
+				select {
+				case s.entityChan <- note:
+					log.Printf("Сервис: отправлена заметка %d", noteCounter)
+				case <-s.done:
+					log.Println("Сервис: завершение генерации данных")
+					return
+				}
 
-		note := model.NewNote(title, content)
-
-		// Передаем в репозиторий
-		if err := s.repo.Save(note); err != nil {
-			log.Printf("Ошибка сохранения заметки: %v", err)
-		} else {
-			log.Printf("Сгенерирована заметка: %s", title)
+				noteCounter++
+				if noteCounter > 10 {
+					log.Println("Сервис: генерация тестовых данных завершена")
+					return
+				}
+			case <-s.done:
+				log.Println("Сервис: завершение работы по сигналу")
+				return
+			}
 		}
-
-		noteCounter++
-
-		// Останавливаем после создания 5 заметок для демонстрации
-		if noteCounter > 5 {
-			log.Println("Генерация тестовых данных завершена")
-			break
-		}
-	}
+	}()
 }

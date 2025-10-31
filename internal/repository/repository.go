@@ -1,8 +1,8 @@
 package repository
 
 import (
-	"fmt"
 	"log"
+	"sync"
 
 	"github.com/rd2w/go-notes/internal/model"
 )
@@ -16,7 +16,7 @@ type Entity interface {
 // Repository управляет хранением различных сущностей
 type Repository struct {
 	notes []*model.Note
-	// В будущем нужно добавить другие слайсы для других сущностей
+	mu    sync.RWMutex
 }
 
 // NewRepository создает новый экземпляр репозитория
@@ -26,25 +26,52 @@ func NewRepository() *Repository {
 	}
 }
 
-// Save принимает интерфейс Entity и сохраняет в соответствующий слайс
-func (r *Repository) Save(entity Entity) error {
-	// Проверяем тип сущности и сохраняем в соответствующий слайс
-	switch entity := entity.(type) {
-	case *model.Note:
-		r.notes = append(r.notes, entity)
-		log.Printf("Заметка сохранена: ID=%s, Title=%s", entity.GetID(), entity.GetTitle())
-	default:
-		return fmt.Errorf("неподдерживаемый тип сущности: %T", entity)
+// Save принимает сущности из канала и сохраняет в соответствующие слайсы
+func (r *Repository) Save(entityChan <-chan Entity, done <-chan struct{}) {
+	for {
+		select {
+		case entity := <-entityChan:
+			r.mu.Lock()
+			switch entity := entity.(type) {
+			case *model.Note:
+				r.notes = append(r.notes, entity)
+				log.Printf("Репозиторий: сохранена заметка ID=%s", entity.GetID())
+			default:
+				log.Printf("Репозиторий: неподдерживаемый тип сущности: %T", entity)
+			}
+			r.mu.Unlock()
+		case <-done:
+			log.Println("Репозиторий: завершение работы")
+			return
+		}
 	}
-	return nil
 }
 
 // GetAllNotes возвращает все сохраненные заметки
 func (r *Repository) GetAllNotes() []*model.Note {
-	return r.notes
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	notes := make([]*model.Note, len(r.notes))
+	copy(notes, r.notes)
+	return notes
 }
 
 // GetNotesCount возвращает количество сохраненных заметок
 func (r *Repository) GetNotesCount() int {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	return len(r.notes)
+}
+
+// GetNewNotes возвращает заметки, добавленные после указанного индекса
+func (r *Repository) GetNewNotes(lastIndex int) []*model.Note {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	if lastIndex >= len(r.notes) {
+		return []*model.Note{}
+	}
+	newNotes := r.notes[lastIndex:]
+	result := make([]*model.Note, len(newNotes))
+	copy(result, newNotes)
+	return result
 }

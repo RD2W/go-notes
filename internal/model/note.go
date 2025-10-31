@@ -35,9 +35,7 @@ func (n *Note) GetType() string {
 }
 
 // GetTitle возвращает заголовок заметки
-func (n *Note) GetTitle() string {
-	return n.title
-}
+func (n *Note) GetTitle() string { return n.title }
 
 // GetContent возвращает содержимое заметки
 func (n *Note) GetContent() string {

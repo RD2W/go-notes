@@ -5,17 +5,38 @@ import (
 	"log"
 	"time"
 
+	"github.com/rd2w/go-notes/internal/logger"
 	"github.com/rd2w/go-notes/internal/model"
 	"github.com/rd2w/go-notes/internal/repository"
 	"github.com/rd2w/go-notes/internal/service"
 )
 
 func main() {
+	log.Println("Запуск приложения с горутинами и каналами...")
+	// Создаем каналы для коммуникации
+	entityChan := make(chan repository.Entity, 10)
+	done := make(chan struct{})
+
+	// Инициализируем компоненты
 	repo := repository.NewRepository()
-	svc := service.NewService(repo)
+	svc := service.NewService(entityChan, done)
+	newLogger := logger.NewLogger(repo, done, 200*time.Millisecond)
+
+	// Запускаем горутины
+	go repo.Save(entityChan, done) // Репозиторий слушает канал
+	go newLogger.Start()           // Логгер мониторит изменения
 
 	log.Println("Запуск генерации тестовых данных...")
-	svc.StartDataGeneration(1 * time.Second)
+	svc.StartDataGeneration(500 * time.Millisecond) // Сервис генерирует данные
+
+	// Ждем некоторое время для демонстрации работы
+	time.Sleep(6 * time.Second)
+
+	// Сигнал завершения всем горутинам
+	close(done)
+
+	// Даем время на корректное завершение
+	time.Sleep(100 * time.Millisecond)
 
 	fmt.Printf("\n=== РЕЗУЛЬТАТЫ ===\n")
 	fmt.Printf("Всего заметок создано: %d\n", repo.GetNotesCount())
