@@ -15,35 +15,31 @@ type Entity interface {
 
 // Repository управляет хранением различных сущностей
 type Repository struct {
-	notes []*model.Note
-	mu    sync.RWMutex
+	notes      []*model.Note
+	notesIndex map[string]*model.Note // для быстрого поиска по ID
+	mu         sync.RWMutex
 }
 
 // NewRepository создает новый экземпляр репозитория
 func NewRepository() *Repository {
 	return &Repository{
-		notes: make([]*model.Note, 0),
+		notes:      make([]*model.Note, 0),
+		notesIndex: make(map[string]*model.Note),
 	}
 }
 
-// Save принимает сущности из канала и сохраняет в соответствующие слайсы
-func (r *Repository) Save(entityChan <-chan Entity, done <-chan struct{}) {
-	for {
-		select {
-		case entity := <-entityChan:
-			r.mu.Lock()
-			switch entity := entity.(type) {
-			case *model.Note:
-				r.notes = append(r.notes, entity)
-				log.Printf("Репозиторий: сохранена заметка ID=%s", entity.GetID())
-			default:
-				log.Printf("Репозиторий: неподдерживаемый тип сущности: %T", entity)
-			}
-			r.mu.Unlock()
-		case <-done:
-			log.Println("Репозиторий: завершение работы")
-			return
-		}
+// Save сохраняет сущность в соответствующий слайс
+func (r *Repository) Save(entity Entity) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	switch entity := entity.(type) {
+	case *model.Note:
+		r.notes = append(r.notes, entity)
+		r.notesIndex[entity.GetID()] = entity
+		log.Printf("Репозиторий: сохранена заметка ID=%s", entity.GetID())
+	default:
+		log.Printf("Репозиторий: неподдерживаемый тип сущности: %T", entity)
 	}
 }
 

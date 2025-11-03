@@ -39,26 +39,24 @@ func TestLogger_IntegrationWithService(t *testing.T) {
 	defer log.SetOutput(oldOutput)
 
 	// Создаем компоненты как в main()
-	entityChan := make(chan repository.Entity, 10)
 	done := make(chan struct{})
-	defer close(done)
 
 	repo := repository.NewRepository()
-	svc := service.NewService(entityChan, done)
+	svc := service.NewService(repo, done, 50*time.Millisecond)
 	logger := NewLogger(repo, done, 30*time.Millisecond)
 
 	// Запускаем компоненты
-	go repo.Save(entityChan, done)
 	go logger.Start()
-
-	// Даем время на старт логгера
-	time.Sleep(10 * time.Millisecond)
-
-	// Запускаем генерацию данных на короткое время
-	svc.StartDataGeneration(50 * time.Millisecond)
+	svc.Start()
 
 	// Ждем достаточно времени для обработки нескольких итераций
-	time.Sleep(200 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
+
+	// Закрываем канал после проверки
+	close(done)
+
+	// Ждем немного, чтобы логгер успел завершить работу и вывести сообщения
+	time.Sleep(10 * time.Millisecond)
 
 	output := buf.String()
 
@@ -80,7 +78,6 @@ func TestLogger_StopWithDoneChannel(t *testing.T) {
 	log.SetOutput(&buf)
 	defer log.SetOutput(oldOutput)
 
-	entityChan := make(chan repository.Entity, 10)
 	done := make(chan struct{})
 
 	repo := repository.NewRepository()
@@ -89,7 +86,6 @@ func TestLogger_StopWithDoneChannel(t *testing.T) {
 	logger := NewLogger(repo, done, 100*time.Millisecond)
 
 	// Запускаем компоненты
-	go repo.Save(entityChan, done)
 	go logger.Start()
 
 	// Даем время на старт логгера
@@ -100,8 +96,8 @@ func TestLogger_StopWithDoneChannel(t *testing.T) {
 	note1 := model.NewNote("Test Note 1", "Content 1")
 	note2 := model.NewNote("Test Note 2", "Content 2")
 
-	entityChan <- note1
-	entityChan <- note2
+	repo.Save(note1)
+	repo.Save(note2)
 
 	// Даем время на сохранение в репозиторий
 	time.Sleep(20 * time.Millisecond)
@@ -128,7 +124,6 @@ func TestLogger_MultipleNoteGeneration(t *testing.T) {
 	log.SetOutput(&buf)
 	defer log.SetOutput(oldOutput)
 
-	entityChan := make(chan repository.Entity, 20)
 	done := make(chan struct{})
 	defer close(done)
 
@@ -136,13 +131,12 @@ func TestLogger_MultipleNoteGeneration(t *testing.T) {
 	logger := NewLogger(repo, done, 40*time.Millisecond)
 
 	// Запускаем компоненты
-	go repo.Save(entityChan, done)
 	go logger.Start()
 
 	// Даем время на старт
 	time.Sleep(20 * time.Millisecond)
 
-	// Вручную отправляем несколько заметок с разными интервалами
+	// Вручную сохраняем несколько заметок с разными интервалами
 	go func() {
 		notes := []*model.Note{
 			model.NewNote("First Note", "First content"),
@@ -153,8 +147,8 @@ func TestLogger_MultipleNoteGeneration(t *testing.T) {
 		for i, note := range notes {
 			// Увеличиваем задержку между отправками
 			time.Sleep(time.Duration(i*80) * time.Millisecond)
-			entityChan <- note
-			t.Logf("Отправлена заметка %d: %s", i+1, note.GetTitle())
+			repo.Save(note)
+			t.Logf("Сохранена заметка %d: %s", i+1, note.GetTitle())
 		}
 	}()
 
@@ -191,15 +185,13 @@ func TestLogger_NoNotesScenario(t *testing.T) {
 	log.SetOutput(&buf)
 	defer log.SetOutput(oldOutput)
 
-	entityChan := make(chan repository.Entity, 10)
 	done := make(chan struct{})
 	defer close(done)
 
 	repo := repository.NewRepository()
 	logger := NewLogger(repo, done, 30*time.Millisecond)
 
-	// Запускаем только репозиторий и логгер, но не отправляем заметки
-	go repo.Save(entityChan, done)
+	// Запускаем только логгер, но не отправляем заметки
 	go logger.Start()
 
 	// Ждем несколько интервалов
@@ -218,7 +210,6 @@ func TestLogger_ConcurrentAccess(t *testing.T) {
 	log.SetOutput(&buf)
 	defer log.SetOutput(oldOutput)
 
-	entityChan := make(chan repository.Entity, 50)
 	done := make(chan struct{})
 	defer close(done)
 
@@ -227,20 +218,19 @@ func TestLogger_ConcurrentAccess(t *testing.T) {
 	logger := NewLogger(repo, done, 30*time.Millisecond)
 
 	// Запускаем компоненты
-	go repo.Save(entityChan, done)
 	go logger.Start()
 
 	// Даем время на старт
 	time.Sleep(20 * time.Millisecond)
 
-	// Отправляем много заметок быстро
+	// Сохраняем много заметок быстро
 	go func() {
 		for i := 0; i < 5; i++ { // Уменьшаем количество для надежности
 			note := model.NewNote(
 				"Concurrent Note "+string(rune('A'+i)),
 				"Content for concurrent note",
 			)
-			entityChan <- note
+			repo.Save(note)
 			time.Sleep(10 * time.Millisecond) // Увеличиваем задержку между отправками
 		}
 	}()
@@ -269,21 +259,19 @@ func TestLogger_TimeFormatConsistency(t *testing.T) {
 	log.SetOutput(&buf)
 	defer log.SetOutput(oldOutput)
 
-	entityChan := make(chan repository.Entity, 10)
 	done := make(chan struct{})
 	defer close(done)
 
 	repo := repository.NewRepository()
 	logger := NewLogger(repo, done, 50*time.Millisecond)
 
-	go repo.Save(entityChan, done)
 	go logger.Start()
 
 	// Даем время на старт
 	time.Sleep(20 * time.Millisecond)
 
-	// Отправляем одну заметку
-	entityChan <- model.NewNote("Time Test", "Testing time format")
+	// Сохраняем одну заметку
+	repo.Save(model.NewNote("Time Test", "Testing time format"))
 
 	// Ждем обработки (увеличиваем время)
 	time.Sleep(150 * time.Millisecond)
@@ -312,7 +300,6 @@ func TestLogger_SimpleCase(t *testing.T) {
 	log.SetOutput(&buf)
 	defer log.SetOutput(oldOutput)
 
-	entityChan := make(chan repository.Entity, 5)
 	done := make(chan struct{})
 	defer close(done)
 
@@ -320,15 +307,14 @@ func TestLogger_SimpleCase(t *testing.T) {
 	// Очень короткий интервал для быстрого обнаружения
 	logger := NewLogger(repo, done, 10*time.Millisecond)
 
-	go repo.Save(entityChan, done)
 	go logger.Start()
 
 	// Даем время на полный старт
 	time.Sleep(15 * time.Millisecond)
 
-	// Отправляем одну заметку
+	// Сохраняем одну заметку
 	note := model.NewNote("Simple Test Note", "Simple content")
-	entityChan <- note
+	repo.Save(note)
 
 	// Ждем гарантированной обработки
 	time.Sleep(50 * time.Millisecond)
@@ -352,7 +338,6 @@ func TestLogger_SeesNotesBeforeStop(t *testing.T) {
 	log.SetOutput(&buf)
 	defer log.SetOutput(oldOutput)
 
-	entityChan := make(chan repository.Entity, 10)
 	done := make(chan struct{})
 
 	repo := repository.NewRepository()
@@ -361,18 +346,17 @@ func TestLogger_SeesNotesBeforeStop(t *testing.T) {
 	logger := NewLogger(repo, done, 10*time.Millisecond)
 
 	// Запускаем компоненты
-	go repo.Save(entityChan, done)
 	go logger.Start()
 
 	// Даем время на старт логгера
 	time.Sleep(5 * time.Millisecond)
 
-	// Отправляем заметки
+	// Сохраняем заметки
 	note1 := model.NewNote("Test Note 1", "Content 1")
 	note2 := model.NewNote("Test Note 2", "Content 2")
 
-	entityChan <- note1
-	entityChan <- note2
+	repo.Save(note1)
+	repo.Save(note2)
 
 	// Ждем пока логгер гарантированно проверит (2 интервала + запас)
 	time.Sleep(30 * time.Millisecond)
@@ -400,7 +384,6 @@ func TestLogger_ImmediateStop(t *testing.T) {
 	log.SetOutput(&buf)
 	defer log.SetOutput(oldOutput)
 
-	entityChan := make(chan repository.Entity, 10)
 	done := make(chan struct{})
 
 	repo := repository.NewRepository()
@@ -410,7 +393,6 @@ func TestLogger_ImmediateStop(t *testing.T) {
 	close(done)
 
 	// Запускаем компоненты после остановки
-	go repo.Save(entityChan, done)
 	go logger.Start()
 
 	// Даем время на обработку завершения
@@ -434,7 +416,6 @@ func TestLogger_GracefulStop(t *testing.T) {
 	log.SetOutput(&buf)
 	defer log.SetOutput(oldOutput)
 
-	entityChan := make(chan repository.Entity, 10)
 	done := make(chan struct{})
 	defer close(done) // На этот раз используем defer
 
@@ -444,13 +425,12 @@ func TestLogger_GracefulStop(t *testing.T) {
 	logger := NewLogger(repo, done, 50*time.Millisecond)
 
 	// Запускаем компоненты
-	go repo.Save(entityChan, done)
 	go logger.Start()
 
 	// Даем время на старт
 	time.Sleep(10 * time.Millisecond)
 
-	// Отправляем несколько заметок в разных моментах времени
+	// Сохраняем несколько заметок в разных моментах времени
 	go func() {
 		notes := []*model.Note{
 			model.NewNote("Note 1", "Content 1"),
@@ -460,7 +440,7 @@ func TestLogger_GracefulStop(t *testing.T) {
 
 		for i, note := range notes {
 			time.Sleep(time.Duration(i*40) * time.Millisecond)
-			entityChan <- note
+			repo.Save(note)
 		}
 	}()
 

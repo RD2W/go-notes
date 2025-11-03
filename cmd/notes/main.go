@@ -41,21 +41,17 @@ const (
 
 func main() {
 	log.Println(AppStartMsg)
-	// Создаем каналы для коммуникации
-	entityChan := make(chan repository.Entity, EntityChanBuffer)
+	// Создаем канал для завершения
 	done := make(chan struct{})
 
 	// Инициализируем компоненты
 	repo := repository.NewRepository()
-	svc := service.NewService(entityChan, done)
+	svc := service.NewService(repo, done, DataGenInterval)
 	newLogger := logger.NewLogger(repo, done, LoggerInterval)
 
 	// Запускаем горутины
-	go repo.Save(entityChan, done) // Репозиторий слушает канал
-	go newLogger.Start()           // Логгер мониторит изменения
-
-	log.Println(DataGenStartMsg)
-	svc.StartDataGeneration(DataGenInterval) // Сервис генерирует данные
+	go newLogger.Start() // Логгер мониторит изменения
+	svc.Start()          // Сервис запускает генерацию и сохранение данных
 
 	// Ждем некоторое время для демонстрации работы
 	time.Sleep(AppRunDuration)

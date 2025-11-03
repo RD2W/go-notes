@@ -38,19 +38,10 @@ func TestRepository_Save(t *testing.T) {
 	defer log.SetOutput(log.Writer())
 
 	repo := NewRepository()
-	entityChan := make(chan Entity, 10)
-	done := make(chan struct{})
-	defer close(done)
-
-	// Запускаем горутину метода Save
-	go repo.Save(entityChan, done)
 
 	// Тестируем сохранение заметки
 	note := model.NewNote("Test Note", "Test Content")
-	entityChan <- note
-
-	// Даем время на обработку
-	time.Sleep(10 * time.Millisecond)
+	repo.Save(note)
 
 	// Проверяем, что заметка была сохранена
 	notes := repo.GetAllNotes()
@@ -66,11 +57,6 @@ func TestRepository_Save(t *testing.T) {
 // TestRepository_SaveMultipleNotes тестирует сохранение нескольких заметок
 func TestRepository_SaveMultipleNotes(t *testing.T) {
 	repo := NewRepository()
-	entityChan := make(chan Entity, 10)
-	done := make(chan struct{})
-	defer close(done)
-
-	go repo.Save(entityChan, done)
 
 	// Сохраняем несколько заметок
 	notes := []*model.Note{
@@ -80,11 +66,8 @@ func TestRepository_SaveMultipleNotes(t *testing.T) {
 	}
 
 	for _, note := range notes {
-		entityChan <- note
+		repo.Save(note)
 	}
-
-	// Даем время на обработку
-	time.Sleep(20 * time.Millisecond)
 
 	// Проверяем, что все заметки были сохранены
 	savedNotes := repo.GetAllNotes()
@@ -104,17 +87,10 @@ func TestRepository_SaveUnsupportedEntity(t *testing.T) {
 	defer log.SetOutput(log.Writer())
 
 	repo := NewRepository()
-	entityChan := make(chan Entity, 10)
-	done := make(chan struct{})
-	defer close(done)
-
-	go repo.Save(entityChan, done)
 
 	// Создаем неподдерживаемую сущность
 	unsupportedEntity := &mockEntity{id: "test", entityType: "unsupported"}
-	entityChan <- unsupportedEntity
-
-	time.Sleep(10 * time.Millisecond)
+	repo.Save(unsupportedEntity)
 
 	// Проверяем, что заметки не были сохранены для неподдерживаемых типов
 	assert.Equal(t, 0, repo.GetNotesCount(), "Не должно быть сохраненных заметок для неподдерживаемых сущностей")
@@ -127,20 +103,13 @@ func TestRepository_SaveUnsupportedEntity(t *testing.T) {
 // TestRepository_GetAllNotes тестирует метод GetAllNotes
 func TestRepository_GetAllNotes(t *testing.T) {
 	repo := NewRepository()
-	entityChan := make(chan Entity, 10)
-	done := make(chan struct{})
-	defer close(done)
-
-	go repo.Save(entityChan, done)
 
 	// Добавляем заметки
 	note1 := model.NewNote("Note 1", "Content 1")
 	note2 := model.NewNote("Note 2", "Content 2")
 
-	entityChan <- note1
-	entityChan <- note2
-
-	time.Sleep(10 * time.Millisecond)
+	repo.Save(note1)
+	repo.Save(note2)
 
 	// Тестируем GetAllNotes
 	notes := repo.GetAllNotes()
@@ -157,35 +126,23 @@ func TestRepository_GetAllNotes(t *testing.T) {
 // TestRepository_GetNotesCount тестирует метод GetNotesCount
 func TestRepository_GetNotesCount(t *testing.T) {
 	repo := NewRepository()
-	entityChan := make(chan Entity, 10)
-	done := make(chan struct{})
-	defer close(done)
-
-	go repo.Save(entityChan, done)
 
 	// Начальное количество должно быть 0
 	assert.Equal(t, 0, repo.GetNotesCount())
 
 	// Добавляем заметки и проверяем увеличение счетчика
 	note1 := model.NewNote("Note 1", "Content 1")
-	entityChan <- note1
-	time.Sleep(5 * time.Millisecond)
+	repo.Save(note1)
 	assert.Equal(t, 1, repo.GetNotesCount())
 
 	note2 := model.NewNote("Note 2", "Content 2")
-	entityChan <- note2
-	time.Sleep(5 * time.Millisecond)
+	repo.Save(note2)
 	assert.Equal(t, 2, repo.GetNotesCount())
 }
 
 // TestRepository_GetNewNotes тестирует метод GetNewNotes
 func TestRepository_GetNewNotes(t *testing.T) {
 	repo := NewRepository()
-	entityChan := make(chan Entity, 10)
-	done := make(chan struct{})
-	defer close(done)
-
-	go repo.Save(entityChan, done)
 
 	// Добавляем начальные заметки
 	notes := []*model.Note{
@@ -195,10 +152,8 @@ func TestRepository_GetNewNotes(t *testing.T) {
 	}
 
 	for _, note := range notes {
-		entityChan <- note
+		repo.Save(note)
 	}
-
-	time.Sleep(10 * time.Millisecond)
 
 	// Тестируем GetNewNotes с различными индексами
 	tests := []struct {
@@ -230,12 +185,6 @@ func TestRepository_GetNewNotes(t *testing.T) {
 // TestRepository_ConcurrentAccess тестирует конкурентный доступ к репозиторию
 func TestRepository_ConcurrentAccess(t *testing.T) {
 	repo := NewRepository()
-	entityChan := make(chan Entity, 100)
-	done := make(chan struct{})
-	defer close(done)
-
-	go repo.Save(entityChan, done)
-
 	var wg sync.WaitGroup
 
 	// Конкурентные писатели
@@ -244,7 +193,7 @@ func TestRepository_ConcurrentAccess(t *testing.T) {
 		go func(index int) {
 			defer wg.Done()
 			note := model.NewNote("Concurrent Note", "Content")
-			entityChan <- note
+			repo.Save(note)
 		}(i)
 	}
 
@@ -262,54 +211,14 @@ func TestRepository_ConcurrentAccess(t *testing.T) {
 	}
 
 	wg.Wait()
-	time.Sleep(10 * time.Millisecond)
 
 	// Проверяем, что все заметки были сохранены
 	assert.Equal(t, 10, repo.GetNotesCount(), "Все конкурентные записи должны быть обработаны")
 }
 
-// TestRepository_StopWithDone тестирует корректное завершение работы через done канал
-func TestRepository_StopWithDone(t *testing.T) {
-	var buf safeBuffer
-	log.SetOutput(&buf)
-	defer log.SetOutput(log.Writer())
-
-	repo := NewRepository()
-	entityChan := make(chan Entity, 10)
-	done := make(chan struct{})
-
-	// Запускаем горутину Save
-	go repo.Save(entityChan, done)
-
-	// Отправляем одну заметку
-	note := model.NewNote("Test Note", "Content")
-	entityChan <- note
-	time.Sleep(5 * time.Millisecond)
-
-	// Останавливаем репозиторий
-	close(done)
-	time.Sleep(5 * time.Millisecond)
-
-	// Проверяем сообщение о остановке в логах
-	logOutput := buf.String()
-	assert.Contains(t, logOutput, "Репозиторий: завершение работы")
-
-	// Проверяем, что заметка была сохранена до остановки
-	assert.Equal(t, 1, repo.GetNotesCount())
-}
-
 // TestRepository_EmptyChannel тестирует поведение с пустым каналом
 func TestRepository_EmptyChannel(t *testing.T) {
 	repo := NewRepository()
-	entityChan := make(chan Entity)
-	done := make(chan struct{})
-	defer close(done)
-
-	// Должен запуститься и ждать ввода
-	go repo.Save(entityChan, done)
-
-	// Даем время на запуск
-	time.Sleep(5 * time.Millisecond)
 
 	// Должен продолжать работать без паники
 	assert.Equal(t, 0, repo.GetNotesCount())
@@ -332,16 +241,10 @@ func (m *mockEntity) GetType() string {
 // TestRepository_DataIsolation тестирует, что внутренние данные не экспортируются
 func TestRepository_DataIsolation(t *testing.T) {
 	repo := NewRepository()
-	entityChan := make(chan Entity, 10)
-	done := make(chan struct{})
-	defer close(done)
-
-	go repo.Save(entityChan, done)
 
 	// Добавляем заметку
 	note := model.NewNote("Test Note", "Content")
-	entityChan <- note
-	time.Sleep(5 * time.Millisecond)
+	repo.Save(note)
 
 	// Получаем заметки и изменяем возвращенный слайс
 	notes := repo.GetAllNotes()
@@ -357,18 +260,12 @@ func TestRepository_DataIsolation(t *testing.T) {
 // TestRepository_NewNotesIsolation тестирует, что GetNewNotes возвращает копии
 func TestRepository_NewNotesIsolation(t *testing.T) {
 	repo := NewRepository()
-	entityChan := make(chan Entity, 10)
-	done := make(chan struct{})
-	defer close(done)
-
-	go repo.Save(entityChan, done)
 
 	// Добавляем заметки
 	note1 := model.NewNote("Note 1", "Content 1")
 	note2 := model.NewNote("Note 2", "Content 2")
-	entityChan <- note1
-	entityChan <- note2
-	time.Sleep(10 * time.Millisecond)
+	repo.Save(note1)
+	repo.Save(note2)
 
 	// Получаем новые заметки и изменяем их
 	newNotes := repo.GetNewNotes(0)

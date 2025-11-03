@@ -36,6 +36,7 @@ func (l *Logger) Start() {
 				currentNoteCount := l.repo.GetNotesCount()
 
 				if currentNoteCount > lastNoteCount {
+					// Получаем только новые заметки, добавленные после последней проверки
 					newNotes := l.repo.GetNewNotes(lastNoteCount)
 					log.Printf("Логгер: обнаружено %d новых заметок", len(newNotes))
 

@@ -11,23 +11,37 @@ import (
 
 // Service содержит бизнес-логику приложения
 type Service struct {
-	entityChan chan<- repository.Entity
-	done       chan struct{}
+	repo     *repository.Repository
+	done     <-chan struct{}
+	interval time.Duration
 }
 
 // NewService создает новый экземпляр сервиса
-func NewService(entityChan chan<- repository.Entity, done chan struct{}) *Service {
+func NewService(repo *repository.Repository, done <-chan struct{}, interval time.Duration) *Service {
 	return &Service{
-		entityChan: entityChan,
-		done:       done,
+		repo:     repo,
+		done:     done,
+		interval: interval,
 	}
 }
 
-// StartDataGeneration запускает периодическое создание тестовых данных
-func (s *Service) StartDataGeneration(interval time.Duration) {
+// Start запускает все горутины сервиса
+func (s *Service) Start() {
+	// Создаем канал для передачи сущностей между горутинами
+	entityChan := make(chan repository.Entity, 10)
+
+	// Запускаем горутину для генерации данных
+	go s.startDataGeneration(entityChan)
+
+	// Запускаем горутину для сохранения данных
+	go s.startDataSaving(entityChan)
+}
+
+// startDataGeneration запускает периодическое создание тестовых данных
+func (s *Service) startDataGeneration(entityChan chan<- repository.Entity) {
 	go func() {
 		noteCounter := 1
-		ticker := time.NewTicker(interval)
+		ticker := time.NewTicker(s.interval)
 		defer ticker.Stop()
 
 		for {
@@ -39,8 +53,8 @@ func (s *Service) StartDataGeneration(interval time.Duration) {
 				note := model.NewNote(title, content)
 
 				select {
-				case s.entityChan <- note:
-					log.Printf("Сервис: отправлена заметка %d", noteCounter)
+				case entityChan <- note:
+					log.Printf("Сервис: создана заметка %d", noteCounter)
 				case <-s.done:
 					log.Println("Сервис: завершение генерации данных")
 					return
@@ -52,9 +66,24 @@ func (s *Service) StartDataGeneration(interval time.Duration) {
 					return
 				}
 			case <-s.done:
-				log.Println("Сервис: завершение работы по сигналу")
+				log.Println("Сервис: завершение работы генерации по сигналу")
 				return
 			}
 		}
 	}()
+}
+
+// startDataSaving запускает сохранение данных в репозиторий
+func (s *Service) startDataSaving(entityChan <-chan repository.Entity) {
+	for {
+		select {
+		case entity := <-entityChan:
+			// Вызываем синхронный метод сохранения в репозитории
+			s.repo.Save(entity)
+			log.Printf("Сервис: сохранена сущность %s", entity.GetID())
+		case <-s.done:
+			log.Println("Сервис: завершение сохранения данных")
+			return
+		}
+	}
 }
