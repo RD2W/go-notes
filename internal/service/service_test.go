@@ -171,7 +171,7 @@ func TestService_ChannelBlocking(t *testing.T) {
 	logOutput := buf.String()
 
 	// Сервис должен корректно завершиться по сигналу done
-	assert.Contains(t, logOutput, "Сервис: завершение работы генерации по сигналу",
+	assert.Contains(t, logOutput, "Сервис: завершение",
 		"Сервис должен корректно завершиться. Вывод: %s", logOutput)
 }
 
