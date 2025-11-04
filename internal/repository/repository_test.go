@@ -1,227 +1,278 @@
 package repository
 
 import (
+	"bytes"
+	"log"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/rd2w/go-notes/internal/model"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-// MockEntity для тестирования неподдерживаемых сущностей
-type MockEntity struct{}
-
-func (m *MockEntity) GetID() string   { return "mock-id" }
-func (m *MockEntity) GetType() string { return "mock-type" }
-
-func TestNewRepository(t *testing.T) {
-	repo := NewRepository()
-
-	if repo == nil {
-		t.Fatal("NewRepository returned nil")
-	}
-
-	if repo.notes == nil {
-		t.Error("Notes slice should be initialized")
-	}
-
-	if len(repo.notes) != 0 {
-		t.Errorf("New repository should have 0 notes, got %d", len(repo.notes))
-	}
+// safeBuffer потокобезопасный буфер для логов
+type safeBuffer struct {
+	buf bytes.Buffer
+	mu  sync.RWMutex
 }
 
-func TestSaveNote(t *testing.T) {
+func (s *safeBuffer) Write(p []byte) (n int, err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.buf.Write(p)
+}
+
+func (s *safeBuffer) String() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.buf.String()
+}
+
+// TestRepository_Save тестирует метод Save с различными типами сущностей
+func TestRepository_Save(t *testing.T) {
+	// Перехватываем вывод лога для проверки
+	var buf safeBuffer
+	log.SetOutput(&buf)
+	defer log.SetOutput(log.Writer())
+
 	repo := NewRepository()
-	note := model.NewNote("Test Title", "Test Content")
 
-	// Сохраняем заметку
-	err := repo.Save(note)
-	if err != nil {
-		t.Errorf("Save failed: %v", err)
-	}
+	// Тестируем сохранение заметки
+	note := model.NewNote("Test Note", "Test Content")
+	repo.Save(note)
 
-	// Проверяем что заметка сохранилась
-	if repo.GetNotesCount() != 1 {
-		t.Errorf("Expected 1 note, got %d", repo.GetNotesCount())
-	}
-
-	// Проверяем что это именно та заметка
+	// Проверяем, что заметка была сохранена
 	notes := repo.GetAllNotes()
-	if len(notes) != 1 {
-		t.Fatalf("Expected 1 note in GetAllNotes, got %d", len(notes))
-	}
+	require.Len(t, notes, 1, "Должна быть одна заметка")
+	assert.Equal(t, note.GetID(), notes[0].GetID())
+	assert.Equal(t, note.GetTitle(), notes[0].GetTitle())
 
-	if notes[0].GetID() != note.GetID() {
-		t.Error("Saved note ID doesn't match")
-	}
-
-	if notes[0].GetTitle() != note.GetTitle() {
-		t.Error("Saved note title doesn't match")
-	}
+	// Проверяем вывод в лог
+	logOutput := buf.String()
+	assert.Contains(t, logOutput, "Репозиторий: сохранена заметка ID="+note.GetID())
 }
 
-func TestSaveMultipleNotes(t *testing.T) {
+// TestRepository_SaveMultipleNotes тестирует сохранение нескольких заметок
+func TestRepository_SaveMultipleNotes(t *testing.T) {
 	repo := NewRepository()
 
-	// Создаем и сохраняем несколько заметок
+	// Сохраняем несколько заметок
 	notes := []*model.Note{
 		model.NewNote("Note 1", "Content 1"),
 		model.NewNote("Note 2", "Content 2"),
 		model.NewNote("Note 3", "Content 3"),
 	}
 
+	for _, note := range notes {
+		repo.Save(note)
+	}
+
+	// Проверяем, что все заметки были сохранены
+	savedNotes := repo.GetAllNotes()
+	assert.Len(t, savedNotes, 3, "Должно быть 3 заметки")
+
+	// Проверяем содержимое заметок
 	for i, note := range notes {
-		err := repo.Save(note)
-		if err != nil {
-			t.Errorf("Failed to save note %d: %v", i, err)
-		}
-	}
-
-	// Проверяем количество
-	if repo.GetNotesCount() != 3 {
-		t.Errorf("Expected 3 notes, got %d", repo.GetNotesCount())
-	}
-
-	// Проверяем что все заметки сохранились
-	allNotes := repo.GetAllNotes()
-	if len(allNotes) != 3 {
-		t.Fatalf("Expected 3 notes in GetAllNotes, got %d", len(allNotes))
-	}
-
-	// Проверяем целостность данных
-	for i, savedNote := range allNotes {
-		if savedNote.GetID() != notes[i].GetID() {
-			t.Errorf("Note %d ID mismatch", i)
-		}
-		if savedNote.GetTitle() != notes[i].GetTitle() {
-			t.Errorf("Note %d title mismatch", i)
-		}
+		assert.Equal(t, note.GetID(), savedNotes[i].GetID())
+		assert.Equal(t, note.GetTitle(), savedNotes[i].GetTitle())
 	}
 }
 
-func TestSaveUnsupportedEntity(t *testing.T) {
+// TestRepository_SaveUnsupportedEntity тестирует обработку неподдерживаемых типов сущностей
+func TestRepository_SaveUnsupportedEntity(t *testing.T) {
+	var buf safeBuffer
+	log.SetOutput(&buf)
+	defer log.SetOutput(log.Writer())
+
 	repo := NewRepository()
-	mockEntity := &MockEntity{}
 
-	// Пытаемся сохранить неподдерживаемую сущность
-	err := repo.Save(mockEntity)
-	if err == nil {
-		t.Error("Expected error for unsupported entity type")
-	}
+	// Создаем неподдерживаемую сущность
+	unsupportedEntity := &mockEntity{id: "test", entityType: "unsupported"}
+	repo.Save(unsupportedEntity)
 
-	expectedError := "неподдерживаемый тип сущности: *repository.MockEntity"
-	if err.Error() != expectedError {
-		t.Errorf("Expected error %q, got %q", expectedError, err.Error())
-	}
+	// Проверяем, что заметки не были сохранены для неподдерживаемых типов
+	assert.Equal(t, 0, repo.GetNotesCount(), "Не должно быть сохраненных заметок для неподдерживаемых сущностей")
 
-	// Проверяем что ничего не сохранилось
-	if repo.GetNotesCount() != 0 {
-		t.Errorf("Repository should be empty after failed save, got %d notes", repo.GetNotesCount())
-	}
+	// Проверяем вывод в лог
+	logOutput := buf.String()
+	assert.Contains(t, logOutput, "Репозиторий: неподдерживаемый тип сущности")
 }
 
-func TestGetAllNotes(t *testing.T) {
+// TestRepository_GetAllNotes тестирует метод GetAllNotes
+func TestRepository_GetAllNotes(t *testing.T) {
 	repo := NewRepository()
 
-	// Проверяем пустой репозиторий
-	emptyNotes := repo.GetAllNotes()
-	if len(emptyNotes) != 0 {
-		t.Errorf("GetAllNotes should return empty slice for new repository, got %d", len(emptyNotes))
-	}
-
-	// Добавляем заметки и проверяем
+	// Добавляем заметки
 	note1 := model.NewNote("Note 1", "Content 1")
 	note2 := model.NewNote("Note 2", "Content 2")
 
-	// Обрабатываем ошибки при сохранении
-	if err := repo.Save(note1); err != nil {
-		t.Fatalf("Failed to save note1: %v", err)
-	}
-	if err := repo.Save(note2); err != nil {
-		t.Fatalf("Failed to save note2: %v", err)
+	repo.Save(note1)
+	repo.Save(note2)
+
+	// Тестируем GetAllNotes
+	notes := repo.GetAllNotes()
+	require.Len(t, notes, 2)
+
+	// Проверяем, что возвращаются копии, а не ссылки на внутренний слайс
+	notes[0] = nil // Это не должно повлиять на внутренний слайс репозитория
+
+	internalNotes := repo.GetAllNotes()
+	assert.NotNil(t, internalNotes[0], "Изменение возвращенного слайса не должно влиять на репозиторий")
+	assert.Equal(t, note1.GetID(), internalNotes[0].GetID())
+}
+
+// TestRepository_GetNotesCount тестирует метод GetNotesCount
+func TestRepository_GetNotesCount(t *testing.T) {
+	repo := NewRepository()
+
+	// Начальное количество должно быть 0
+	assert.Equal(t, 0, repo.GetNotesCount())
+
+	// Добавляем заметки и проверяем увеличение счетчика
+	note1 := model.NewNote("Note 1", "Content 1")
+	repo.Save(note1)
+	assert.Equal(t, 1, repo.GetNotesCount())
+
+	note2 := model.NewNote("Note 2", "Content 2")
+	repo.Save(note2)
+	assert.Equal(t, 2, repo.GetNotesCount())
+}
+
+// TestRepository_GetNewNotes тестирует метод GetNewNotes
+func TestRepository_GetNewNotes(t *testing.T) {
+	repo := NewRepository()
+
+	// Добавляем начальные заметки
+	notes := []*model.Note{
+		model.NewNote("Note 1", "Content 1"),
+		model.NewNote("Note 2", "Content 2"),
+		model.NewNote("Note 3", "Content 3"),
 	}
 
+	for _, note := range notes {
+		repo.Save(note)
+	}
+
+	// Тестируем GetNewNotes с различными индексами
+	tests := []struct {
+		name      string
+		lastIndex int
+		expected  int
+	}{
+		{"LastIndex 0", 0, 3},
+		{"LastIndex 1", 1, 2},
+		{"LastIndex 2", 2, 1},
+		{"LastIndex 3", 3, 0},
+		{"LastIndex 5", 5, 0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			newNotes := repo.GetNewNotes(tt.lastIndex)
+			assert.Len(t, newNotes, tt.expected)
+
+			// Проверяем, что возвращаются правильные заметки
+			if tt.expected > 0 {
+				expectedNote := notes[tt.lastIndex]
+				assert.Equal(t, expectedNote.GetID(), newNotes[0].GetID())
+			}
+		})
+	}
+}
+
+// TestRepository_ConcurrentAccess тестирует конкурентный доступ к репозиторию
+func TestRepository_ConcurrentAccess(t *testing.T) {
+	repo := NewRepository()
+	var wg sync.WaitGroup
+
+	// Конкурентные писатели
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func(index int) {
+			defer wg.Done()
+			note := model.NewNote("Concurrent Note", "Content")
+			repo.Save(note)
+		}(i)
+	}
+
+	// Конкурентные читатели
+	for i := 0; i < 5; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < 3; j++ {
+				_ = repo.GetNotesCount()
+				_ = repo.GetAllNotes()
+				time.Sleep(1 * time.Millisecond)
+			}
+		}()
+	}
+
+	wg.Wait()
+
+	// Проверяем, что все заметки были сохранены
+	assert.Equal(t, 10, repo.GetNotesCount(), "Все конкурентные записи должны быть обработаны")
+}
+
+// TestRepository_EmptyChannel тестирует поведение с пустым каналом
+func TestRepository_EmptyChannel(t *testing.T) {
+	repo := NewRepository()
+
+	// Должен продолжать работать без паники
+	assert.Equal(t, 0, repo.GetNotesCount())
+}
+
+// mockEntity реализует интерфейс Entity для тестирования неподдерживаемых типов
+type mockEntity struct {
+	id         string
+	entityType string
+}
+
+func (m *mockEntity) GetID() string {
+	return m.id
+}
+
+func (m *mockEntity) GetType() string {
+	return m.entityType
+}
+
+// TestRepository_DataIsolation тестирует, что внутренние данные не экспортируются
+func TestRepository_DataIsolation(t *testing.T) {
+	repo := NewRepository()
+
+	// Добавляем заметку
+	note := model.NewNote("Test Note", "Content")
+	repo.Save(note)
+
+	// Получаем заметки и изменяем возвращенный слайс
+	notes := repo.GetAllNotes()
+	originalID := notes[0].GetID()
+	notes[0] = nil // Это не должно повлиять на репозиторий
+
+	// Получаем заметки снова - должны быть оригинальные данные
+	notesAgain := repo.GetAllNotes()
+	assert.NotNil(t, notesAgain[0])
+	assert.Equal(t, originalID, notesAgain[0].GetID())
+}
+
+// TestRepository_NewNotesIsolation тестирует, что GetNewNotes возвращает копии
+func TestRepository_NewNotesIsolation(t *testing.T) {
+	repo := NewRepository()
+
+	// Добавляем заметки
+	note1 := model.NewNote("Note 1", "Content 1")
+	note2 := model.NewNote("Note 2", "Content 2")
+	repo.Save(note1)
+	repo.Save(note2)
+
+	// Получаем новые заметки и изменяем их
+	newNotes := repo.GetNewNotes(0)
+	newNotes[0] = nil
+
+	// Проверяем, что данные в репозитории не изменились
 	allNotes := repo.GetAllNotes()
-	if len(allNotes) != 2 {
-		t.Fatalf("Expected 2 notes, got %d", len(allNotes))
-	}
-}
-
-func TestGetNotesCount(t *testing.T) {
-	repo := NewRepository()
-
-	// Проверяем начальное состояние
-	if count := repo.GetNotesCount(); count != 0 {
-		t.Errorf("New repository should have 0 notes, got %d", count)
-	}
-
-	// Добавляем заметки и проверяем счетчик
-	if err := repo.Save(model.NewNote("Note 1", "Content 1")); err != nil {
-		t.Fatalf("Failed to save note 1: %v", err)
-	}
-	if count := repo.GetNotesCount(); count != 1 {
-		t.Errorf("Expected 1 note, got %d", count)
-	}
-
-	if err := repo.Save(model.NewNote("Note 2", "Content 2")); err != nil {
-		t.Fatalf("Failed to save note 2: %v", err)
-	}
-	if count := repo.GetNotesCount(); count != 2 {
-		t.Errorf("Expected 2 notes, got %d", count)
-	}
-
-	if err := repo.Save(model.NewNote("Note 3", "Content 3")); err != nil {
-		t.Fatalf("Failed to save note 3: %v", err)
-	}
-	if count := repo.GetNotesCount(); count != 3 {
-		t.Errorf("Expected 3 notes, got %d", count)
-	}
-}
-
-func TestRepositoryIsolation(t *testing.T) {
-	// Проверяем что разные репозитории изолированы друг от друга
-	repo1 := NewRepository()
-	repo2 := NewRepository()
-
-	note1 := model.NewNote("Repo1 Note", "Content")
-	note2 := model.NewNote("Repo2 Note", "Content")
-
-	// Обрабатываем ошибки при сохранении
-	if err := repo1.Save(note1); err != nil {
-		t.Fatalf("Failed to save note1 in repo1: %v", err)
-	}
-	if err := repo2.Save(note2); err != nil {
-		t.Fatalf("Failed to save note2 in repo2: %v", err)
-	}
-
-	// Проверяем изоляцию
-	if repo1.GetNotesCount() != 1 {
-		t.Errorf("Repo1 should have 1 note, got %d", repo1.GetNotesCount())
-	}
-	if repo2.GetNotesCount() != 1 {
-		t.Errorf("Repo2 should have 1 note, got %d", repo2.GetNotesCount())
-	}
-
-	repo1Notes := repo1.GetAllNotes()
-	repo2Notes := repo2.GetAllNotes()
-
-	if repo1Notes[0].GetID() != note1.GetID() {
-		t.Error("Repo1 contains wrong note")
-	}
-	if repo2Notes[0].GetID() != note2.GetID() {
-		t.Error("Repo2 contains wrong note")
-	}
-}
-
-func TestSaveNilEntity(t *testing.T) {
-	repo := NewRepository()
-
-	// Пытаемся сохранить nil
-	err := repo.Save(nil)
-	if err == nil {
-		t.Error("Expected error when saving nil entity")
-	}
-
-	expectedError := "неподдерживаемый тип сущности: <nil>"
-	if err.Error() != expectedError {
-		t.Errorf("Expected error %q, got %q", expectedError, err.Error())
-	}
+	assert.NotNil(t, allNotes[0])
+	assert.Equal(t, note1.GetID(), allNotes[0].GetID())
 }

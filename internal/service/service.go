@@ -11,48 +11,79 @@ import (
 
 // Service содержит бизнес-логику приложения
 type Service struct {
-	repo *repository.Repository
+	repo     *repository.Repository
+	done     <-chan struct{}
+	interval time.Duration
 }
 
 // NewService создает новый экземпляр сервиса
-func NewService(repo *repository.Repository) *Service {
+func NewService(repo *repository.Repository, done <-chan struct{}, interval time.Duration) *Service {
 	return &Service{
-		repo: repo,
+		repo:     repo,
+		done:     done,
+		interval: interval,
 	}
 }
 
-// StartDataGeneration запускает периодическое создание тестовых данных
-func (s *Service) StartDataGeneration(interval time.Duration) {
-	if s.repo == nil {
-		log.Println("Ошибка: репозиторий не инициализирован")
-		return
-	}
+// Start запускает все горутины сервиса
+func (s *Service) Start() {
+	// Создаем канал для передачи сущностей между горутинами
+	entityChan := make(chan repository.Entity, 10)
 
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
+	// Запускаем горутину для генерации данных
+	go s.startDataGeneration(entityChan)
 
-	noteCounter := 1
+	// Запускаем горутину для сохранения данных
+	go s.startDataSaving(entityChan)
+}
 
-	for range ticker.C {
-		// Создаем новую заметку
-		title := fmt.Sprintf("Тестовая заметка %d", noteCounter)
-		content := fmt.Sprintf("Это содержимое тестовой заметки номер %d", noteCounter)
+// startDataGeneration запускает периодическое создание тестовых данных
+func (s *Service) startDataGeneration(entityChan chan<- repository.Entity) {
+	go func() {
+		noteCounter := 1
+		ticker := time.NewTicker(s.interval)
+		defer ticker.Stop()
 
-		note := model.NewNote(title, content)
+		for {
+			select {
+			case <-ticker.C:
+				title := fmt.Sprintf("Тестовая заметка %d", noteCounter)
+				content := fmt.Sprintf("Это содержимое тестовой заметки номер %d", noteCounter)
 
-		// Передаем в репозиторий
-		if err := s.repo.Save(note); err != nil {
-			log.Printf("Ошибка сохранения заметки: %v", err)
-		} else {
-			log.Printf("Сгенерирована заметка: %s", title)
+				note := model.NewNote(title, content)
+
+				select {
+				case entityChan <- note:
+					log.Printf("Сервис: создана заметка %d", noteCounter)
+				case <-s.done:
+					log.Println("Сервис: завершение генерации данных")
+					return
+				}
+
+				noteCounter++
+				if noteCounter > 10 {
+					log.Println("Сервис: генерация тестовых данных завершена")
+					return
+				}
+			case <-s.done:
+				log.Println("Сервис: завершение работы генерации по сигналу")
+				return
+			}
 		}
+	}()
+}
 
-		noteCounter++
-
-		// Останавливаем после создания 5 заметок для демонстрации
-		if noteCounter > 5 {
-			log.Println("Генерация тестовых данных завершена")
-			break
+// startDataSaving запускает сохранение данных в репозиторий
+func (s *Service) startDataSaving(entityChan <-chan repository.Entity) {
+	for {
+		select {
+		case entity := <-entityChan:
+			// Вызываем синхронный метод сохранения в репозитории
+			s.repo.Save(entity)
+			log.Printf("Сервис: сохранена сущность %s", entity.GetID())
+		case <-s.done:
+			log.Println("Сервис: завершение сохранения данных")
+			return
 		}
 	}
 }

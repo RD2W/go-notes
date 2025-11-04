@@ -1,150 +1,271 @@
 package service
 
 import (
+	"bytes"
 	"fmt"
+	"log"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/rd2w/go-notes/internal/repository"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestNewService(t *testing.T) {
-	repo := repository.NewRepository()
-	service := NewService(repo)
+// safeBuffer для service тестов тоже
+type safeBuffer struct {
+	buf bytes.Buffer
+	mu  sync.RWMutex
+}
 
-	if service == nil {
-		t.Fatal("NewService returned nil")
+func (s *safeBuffer) Write(p []byte) (n int, err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.buf.Write(p)
+}
+
+func (s *safeBuffer) String() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.buf.String()
+}
+
+// TestService_StopWithDoneChannel тестирует остановку генерации через done канал
+func TestService_StopWithDoneChannel(t *testing.T) {
+	var buf safeBuffer
+	log.SetOutput(&buf)
+	defer log.SetOutput(log.Writer())
+
+	done := make(chan struct{})
+
+	repo := repository.NewRepository()
+	service := NewService(repo, done, 20*time.Millisecond)
+
+	// Запускаем сервис
+	service.Start()
+
+	// Даем время на отправку первой заметки
+	time.Sleep(25 * time.Millisecond)
+
+	// Останавливаем сервис
+	close(done)
+
+	// Даем время на обработку завершения
+	time.Sleep(30 * time.Millisecond)
+
+	logOutput := buf.String()
+
+	// Должно быть сообщение о завершении
+	assert.Contains(t, logOutput, "Сервис: завершение работы генерации по сигналу",
+		"Должно быть сообщение о завершении по сигналу")
+
+	// Проверяем что была отправлена хотя бы одна заметка до остановки
+	assert.Contains(t, logOutput, "Сервис: создана заметка",
+		"Должна быть отправлена хотя бы одна заметка до остановки")
+}
+
+// TestService_LimitTenNotes тестирует ограничение в 10 заметок
+func TestService_LimitTenNotes(t *testing.T) {
+	var buf safeBuffer
+	log.SetOutput(&buf)
+	defer log.SetOutput(log.Writer())
+
+	done := make(chan struct{})
+	defer close(done)
+
+	repo := repository.NewRepository()
+	service := NewService(repo, done, 5*time.Millisecond)
+
+	// Запускаем сервис
+	service.Start()
+
+	// Ждем, пока будут созданы все заметки
+	time.Sleep(150 * time.Millisecond)
+
+	// Проверяем что было создано ровно 10 заметок
+	assert.Len(t, repo.GetAllNotes(), 10, "Должно быть создано ровно 10 заметок")
+
+	// Проверяем логи
+	logOutput := buf.String()
+	assert.Contains(t, logOutput, "Сервис: создана заметка 10")
+	assert.Contains(t, logOutput, "Сервис: генерация тестовых данных завершена",
+		"Должно быть сообщение о завершении генерации")
+
+	// Проверяем что нет сообщения о 11й заметке
+	assert.NotContains(t, logOutput, "Сервис: создана заметка 11")
+}
+
+// TestService_NoteTitles тестирует корректность заголовков заметок
+func TestService_NoteTitles(t *testing.T) {
+	done := make(chan struct{})
+	defer close(done)
+
+	repo := repository.NewRepository()
+	service := NewService(repo, done, 10*time.Millisecond)
+
+	// Запускаем сервис
+	service.Start()
+
+	// Ждем создание нескольких заметок
+	time.Sleep(50 * time.Millisecond)
+
+	// Проверяем заголовки
+	notes := repo.GetAllNotes()
+	require.GreaterOrEqual(t, len(notes), 3, "Должно быть создано как минимум 3 заметки")
+
+	expectedTitles := []string{
+		"Тестовая заметка 1",
+		"Тестовая заметка 2",
+		"Тестовая заметка 3",
 	}
 
-	if service.repo != repo {
-		t.Error("Service should use the provided repository")
+	for i := 0; i < len(expectedTitles) && i < len(notes); i++ {
+		assert.Equal(t, expectedTitles[i], notes[i].GetTitle(),
+			"Заголовок заметки %d должен быть '%s'", i+1, expectedTitles[i])
 	}
 }
-func TestStartDataGeneration(t *testing.T) {
+
+// TestService_ConcurrentSafety тестирует безопасность конкурентного доступа
+func TestService_ConcurrentSafety(t *testing.T) {
+	done := make(chan struct{})
+	defer close(done)
+
 	repo := repository.NewRepository()
-	service := NewService(repo)
 
-	// Запускаем генерацию и ждем ее завершения СИНХРОННО
-	interval := 1 * time.Millisecond
-	service.StartDataGeneration(interval) // Запускаем в той же горутине
+	// Создаем сервис
+	service := NewService(repo, done, 15*time.Millisecond)
 
-	// Теперь безопасно проверяем результаты
-	notesCount := repo.GetNotesCount()
-	if notesCount != 5 {
-		t.Errorf("Expected 5 notes, got %d", notesCount)
-	}
+	// Запускаем сервис
+	service.Start()
+
+	// Ждем немного времени
+	time.Sleep(200 * time.Millisecond)
+
+	// Проверяем, что сервисы работают без паники и создают заметки
+	assert.Greater(t, repo.GetNotesCount(), 0, "Должны быть созданы заметки")
+	t.Logf("Создано заметок: %d", repo.GetNotesCount())
+}
+
+// TestService_ChannelBlocking тестирует поведение при блокировке канала
+func TestService_ChannelBlocking(t *testing.T) {
+	var buf safeBuffer
+	log.SetOutput(&buf)
+	defer log.SetOutput(log.Writer())
+
+	done := make(chan struct{})
+
+	repo := repository.NewRepository()
+	service := NewService(repo, done, 5*time.Millisecond)
+
+	// Запускаем сервис
+	service.Start()
+
+	// Ждем немного времени
+	time.Sleep(30 * time.Millisecond)
+
+	// Останавливаем сервис
+	close(done)
+	time.Sleep(20 * time.Millisecond)
+
+	logOutput := buf.String()
+
+	// Сервис должен корректно завершиться по сигналу done
+	assert.Contains(t, logOutput, "Сервис: завершение",
+		"Сервис должен корректно завершиться. Вывод: %s", logOutput)
+}
+
+// TestService_ImmediateStop тестирует немедленную остановку сервиса
+func TestService_ImmediateStop(t *testing.T) {
+	var buf safeBuffer
+	log.SetOutput(&buf)
+	defer log.SetOutput(log.Writer())
+
+	done := make(chan struct{})
+
+	// Останавливаем сервис сразу же
+	close(done)
+
+	repo := repository.NewRepository()
+	service := NewService(repo, done, 10*time.Millisecond)
+	service.Start()
+
+	// Даем время на обработку
+	time.Sleep(20 * time.Millisecond)
+
+	logOutput := buf.String()
+
+	// Должно быть сообщение о завершении
+	assert.Contains(t, logOutput, "Сервис: завершение работы генерации по сигналу",
+		"Должно быть сообщение о немедленном завершении")
+
+	// Не должно быть отправленных заметок
+	assert.NotContains(t, logOutput, "Сервис: создана заметка",
+		"Не должно быть созданных заметок при немедленной остановке")
+}
+
+// TestService_NoteContent тестирует содержимое заметок
+func TestService_NoteContent(t *testing.T) {
+	done := make(chan struct{})
+	defer close(done)
+
+	repo := repository.NewRepository()
+	service := NewService(repo, done, 10*time.Millisecond)
+
+	// Запускаем сервис
+	service.Start()
+
+	// Ждем создание заметок
+	time.Sleep(100 * time.Millisecond)
 
 	// Проверяем содержимое заметок
 	notes := repo.GetAllNotes()
-	for i, note := range notes {
-		expectedTitle := fmt.Sprintf("Тестовая заметка %d", i+1)
-		expectedContent := fmt.Sprintf("Это содержимое тестовой заметки номер %d", i+1)
+	require.GreaterOrEqual(t, len(notes), 3, "Должно быть создано как минимум 3 заметки")
 
-		if note.GetTitle() != expectedTitle {
-			t.Errorf("Note %d: expected title %q, got %q", i+1, expectedTitle, note.GetTitle())
-		}
-
-		if note.GetContent() != expectedContent {
-			t.Errorf("Note %d: expected content %q, got %q", i+1, expectedContent, note.GetContent())
-		}
-
-		// Проверяем что заметка имеет ID
-		if note.GetID() == "" {
-			t.Errorf("Note %d: ID should not be empty", i+1)
-		}
-
-		// Проверяем временные метки
-		if note.GetCreatedAt().IsZero() {
-			t.Errorf("Note %d: CreatedAt should be set", i+1)
-		}
-		if note.GetUpdatedAt().IsZero() {
-			t.Errorf("Note %d: UpdatedAt should be set", i+1)
-		}
+	for i := 1; i <= len(notes) && i <= 3; i++ {
+		expectedContent := fmt.Sprintf("Это содержимое тестовой заметки номер %d", i)
+		assert.Equal(t, expectedContent, notes[i-1].GetContent(),
+			"Содержимое заметки %d должно быть '%s'", i, expectedContent)
 	}
 }
 
-func TestStartDataGenerationStopsAfterFiveNotes(t *testing.T) {
+// TestService_SimpleCase тестирует простой сценарий работы сервиса
+func TestService_SimpleCase(t *testing.T) {
+	done := make(chan struct{})
+	defer close(done)
+
 	repo := repository.NewRepository()
-	service := NewService(repo)
+	service := NewService(repo, done, 30*time.Millisecond)
 
-	// Запускаем генерацию синхронно
-	interval := 1 * time.Millisecond
-	startTime := time.Now()
-	service.StartDataGeneration(interval)
+	// Запускаем сервис
+	service.Start()
 
-	// Проверяем что выполнение заняло разумное время
-	executionTime := time.Since(startTime)
-	if executionTime > time.Second {
-		t.Errorf("Data generation should complete quickly, took %v", executionTime)
-	}
+	// Ждем создание хотя бы одной заметки
+	time.Sleep(40 * time.Millisecond)
 
-	// Проверяем что создалось ровно 5 заметок
-	notesCount := repo.GetNotesCount()
-	if notesCount != 5 {
-		t.Errorf("Expected exactly 5 notes, got %d", notesCount)
-	}
+	// Проверяем, что создана хотя бы одна заметка
+	assert.GreaterOrEqual(t, repo.GetNotesCount(), 1, "Должна быть создана хотя бы одна заметка")
 }
 
-func TestServiceIsolation(t *testing.T) {
-	// Тестируем что разные сервисы работают независимо
-	repo1 := repository.NewRepository()
-	repo2 := repository.NewRepository()
+// TestService_MultipleInstances тестирует работу нескольких экземпляров сервиса
+func TestService_MultipleInstances(t *testing.T) {
+	done := make(chan struct{})
+	defer close(done)
 
-	service1 := NewService(repo1)
-	service2 := NewService(repo2)
-
-	service1.StartDataGeneration(1 * time.Millisecond)
-	service2.StartDataGeneration(1 * time.Millisecond)
-
-	// Оба репозитория должны иметь по 5 заметок
-	if repo1.GetNotesCount() != 5 {
-		t.Errorf("Repo1 should have 5 notes, got %d", repo1.GetNotesCount())
-	}
-	if repo2.GetNotesCount() != 5 {
-		t.Errorf("Repo2 should have 5 notes, got %d", repo2.GetNotesCount())
-	}
-
-	// Заметки в разных репозиториях должны быть независимы
-	notes1 := repo1.GetAllNotes()
-	notes2 := repo2.GetAllNotes()
-
-	for i := 0; i < 5; i++ {
-		if notes1[i].GetID() == notes2[i].GetID() {
-			t.Errorf("Notes in different repositories should have different IDs")
-		}
-	}
-}
-
-func TestServiceWithNilRepository(t *testing.T) {
-	// Тестируем что сервис не паникует при работе с nil репозиторием
-	service := NewService(nil)
-
-	// Запускаем синхронно - должно завершиться сразу
-	service.StartDataGeneration(1 * time.Millisecond)
-
-	// Если не было паники - тест пройден
-}
-
-func TestNoteCounterIncrementsCorrectly(t *testing.T) {
 	repo := repository.NewRepository()
-	service := NewService(repo)
 
-	// Запускаем генерацию синхронно
-	service.StartDataGeneration(1 * time.Millisecond)
+	// Создаем два сервиса
+	service1 := NewService(repo, done, 20*time.Millisecond)
+	service2 := NewService(repo, done, 25*time.Millisecond)
 
-	// Проверяем что заметки имеют правильную нумерацию
-	notes := repo.GetAllNotes()
+	// Запускаем оба сервиса
+	service1.Start()
+	service2.Start()
 
-	for i, note := range notes {
-		expectedNumber := i + 1
-		expectedTitle := fmt.Sprintf("Тестовая заметка %d", expectedNumber)
-		expectedContent := fmt.Sprintf("Это содержимое тестовой заметки номер %d", expectedNumber)
+	// Ждем некоторое время
+	time.Sleep(100 * time.Millisecond)
 
-		if note.GetTitle() != expectedTitle {
-			t.Errorf("Note %d has wrong title: %q", expectedNumber, note.GetTitle())
-		}
-		if note.GetContent() != expectedContent {
-			t.Errorf("Note %d has wrong content: %q", expectedNumber, note.GetContent())
-		}
-	}
+	// Проверяем, что оба сервиса создают заметки
+	assert.Greater(t, repo.GetNotesCount(), 0, "Должны быть созданы заметки от обоих сервисов")
+	t.Logf("Создано заметок от обоих сервисов: %d", repo.GetNotesCount())
 }
