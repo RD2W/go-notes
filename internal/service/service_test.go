@@ -2,6 +2,7 @@ package service
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"log"
 	"sync"
@@ -31,16 +32,16 @@ func (s *safeBuffer) String() string {
 	return s.buf.String()
 }
 
-// TestService_StopWithDoneChannel тестирует остановку генерации через done канал
-func TestService_StopWithDoneChannel(t *testing.T) {
+// TestService_StopWithContext тестирует остановку генерации через контекст
+func TestService_StopWithContext(t *testing.T) {
 	var buf safeBuffer
 	log.SetOutput(&buf)
 	defer log.SetOutput(log.Writer())
 
-	done := make(chan struct{})
+	ctx, cancel := context.WithCancel(context.Background())
 
 	repo := repository.NewRepository()
-	service := NewService(repo, done, 20*time.Millisecond)
+	service := NewService(repo, ctx, 20*time.Millisecond)
 
 	// Запускаем сервис
 	service.Start()
@@ -49,7 +50,7 @@ func TestService_StopWithDoneChannel(t *testing.T) {
 	time.Sleep(25 * time.Millisecond)
 
 	// Останавливаем сервис
-	close(done)
+	cancel()
 
 	// Даем время на обработку завершения
 	time.Sleep(30 * time.Millisecond)
@@ -71,11 +72,11 @@ func TestService_LimitTenNotes(t *testing.T) {
 	log.SetOutput(&buf)
 	defer log.SetOutput(log.Writer())
 
-	done := make(chan struct{})
-	defer close(done)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	repo := repository.NewRepository()
-	service := NewService(repo, done, 5*time.Millisecond)
+	service := NewService(repo, ctx, 5*time.Millisecond)
 
 	// Запускаем сервис
 	service.Start()
@@ -98,11 +99,11 @@ func TestService_LimitTenNotes(t *testing.T) {
 
 // TestService_NoteTitles тестирует корректность заголовков заметок
 func TestService_NoteTitles(t *testing.T) {
-	done := make(chan struct{})
-	defer close(done)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	repo := repository.NewRepository()
-	service := NewService(repo, done, 10*time.Millisecond)
+	service := NewService(repo, ctx, 10*time.Millisecond)
 
 	// Запускаем сервис
 	service.Start()
@@ -128,13 +129,13 @@ func TestService_NoteTitles(t *testing.T) {
 
 // TestService_ConcurrentSafety тестирует безопасность конкурентного доступа
 func TestService_ConcurrentSafety(t *testing.T) {
-	done := make(chan struct{})
-	defer close(done)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	repo := repository.NewRepository()
 
 	// Создаем сервис
-	service := NewService(repo, done, 15*time.Millisecond)
+	service := NewService(repo, ctx, 15*time.Millisecond)
 
 	// Запускаем сервис
 	service.Start()
@@ -153,10 +154,10 @@ func TestService_ChannelBlocking(t *testing.T) {
 	log.SetOutput(&buf)
 	defer log.SetOutput(log.Writer())
 
-	done := make(chan struct{})
+	ctx, cancel := context.WithCancel(context.Background())
 
 	repo := repository.NewRepository()
-	service := NewService(repo, done, 5*time.Millisecond)
+	service := NewService(repo, ctx, 5*time.Millisecond)
 
 	// Запускаем сервис
 	service.Start()
@@ -165,12 +166,12 @@ func TestService_ChannelBlocking(t *testing.T) {
 	time.Sleep(30 * time.Millisecond)
 
 	// Останавливаем сервис
-	close(done)
+	cancel()
 	time.Sleep(20 * time.Millisecond)
 
 	logOutput := buf.String()
 
-	// Сервис должен корректно завершиться по сигналу done
+	// Сервис должен корректно завершиться по сигналу контекста
 	assert.Contains(t, logOutput, "Сервис: завершение",
 		"Сервис должен корректно завершиться. Вывод: %s", logOutput)
 }
@@ -181,13 +182,13 @@ func TestService_ImmediateStop(t *testing.T) {
 	log.SetOutput(&buf)
 	defer log.SetOutput(log.Writer())
 
-	done := make(chan struct{})
+	ctx, cancel := context.WithCancel(context.Background())
 
 	// Останавливаем сервис сразу же
-	close(done)
+	cancel()
 
 	repo := repository.NewRepository()
-	service := NewService(repo, done, 10*time.Millisecond)
+	service := NewService(repo, ctx, 10*time.Millisecond)
 	service.Start()
 
 	// Даем время на обработку
@@ -206,11 +207,11 @@ func TestService_ImmediateStop(t *testing.T) {
 
 // TestService_NoteContent тестирует содержимое заметок
 func TestService_NoteContent(t *testing.T) {
-	done := make(chan struct{})
-	defer close(done)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	repo := repository.NewRepository()
-	service := NewService(repo, done, 10*time.Millisecond)
+	service := NewService(repo, ctx, 10*time.Millisecond)
 
 	// Запускаем сервис
 	service.Start()
@@ -231,11 +232,11 @@ func TestService_NoteContent(t *testing.T) {
 
 // TestService_SimpleCase тестирует простой сценарий работы сервиса
 func TestService_SimpleCase(t *testing.T) {
-	done := make(chan struct{})
-	defer close(done)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	repo := repository.NewRepository()
-	service := NewService(repo, done, 30*time.Millisecond)
+	service := NewService(repo, ctx, 30*time.Millisecond)
 
 	// Запускаем сервис
 	service.Start()
@@ -249,14 +250,14 @@ func TestService_SimpleCase(t *testing.T) {
 
 // TestService_MultipleInstances тестирует работу нескольких экземпляров сервиса
 func TestService_MultipleInstances(t *testing.T) {
-	done := make(chan struct{})
-	defer close(done)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	repo := repository.NewRepository()
 
 	// Создаем два сервиса
-	service1 := NewService(repo, done, 20*time.Millisecond)
-	service2 := NewService(repo, done, 25*time.Millisecond)
+	service1 := NewService(repo, ctx, 20*time.Millisecond)
+	service2 := NewService(repo, ctx, 25*time.Millisecond)
 
 	// Запускаем оба сервиса
 	service1.Start()

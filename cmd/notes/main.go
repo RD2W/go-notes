@@ -1,8 +1,12 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/rd2w/go-notes/internal/logger"
@@ -41,23 +45,29 @@ const (
 
 func main() {
 	log.Println(AppStartMsg)
-	// Создаем канал для завершения
-	done := make(chan struct{})
+
+	// Создаем контекст с отменой для graceful shutdown
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// Обработка сигналов ОС
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
 
 	// Инициализируем компоненты
 	repo := repository.NewRepository()
-	svc := service.NewService(repo, done, DataGenInterval)
-	newLogger := logger.NewLogger(repo, done, LoggerInterval)
+	svc := service.NewService(repo, ctx, DataGenInterval)
+	newLogger := logger.NewLogger(repo, ctx, LoggerInterval)
 
 	// Запускаем горутины
 	go newLogger.Start() // Логгер мониторит изменения
-	svc.Start()          // Сервис запускает генерацию и сохранение данных
+	go svc.Start()       // Сервис запускает генерацию и сохранение данных
 
-	// Ждем некоторое время для демонстрации работы
-	time.Sleep(AppRunDuration)
+	// Ждем сигнал завершения
+	<-sigChan
+	log.Println("Получен сигнал завершения, инициируем graceful shutdown...")
 
-	// Сигнал завершения всем горутинам
-	close(done)
+	// Отменяем контекст для завершения всех горутин
+	cancel()
 
 	// Даем время на корректное завершение
 	time.Sleep(GracefulShutdownDelay)

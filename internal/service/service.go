@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"time"
@@ -12,15 +13,15 @@ import (
 // Service содержит бизнес-логику приложения
 type Service struct {
 	repo     *repository.Repository
-	done     <-chan struct{}
+	ctx      context.Context
 	interval time.Duration
 }
 
 // NewService создает новый экземпляр сервиса
-func NewService(repo *repository.Repository, done <-chan struct{}, interval time.Duration) *Service {
+func NewService(repo *repository.Repository, ctx context.Context, interval time.Duration) *Service {
 	return &Service{
 		repo:     repo,
-		done:     done,
+		ctx:      ctx,
 		interval: interval,
 	}
 }
@@ -55,7 +56,7 @@ func (s *Service) startDataGeneration(entityChan chan<- repository.Entity) {
 				select {
 				case entityChan <- note:
 					log.Printf("Сервис: создана заметка %d", noteCounter)
-				case <-s.done:
+				case <-s.ctx.Done():
 					log.Println("Сервис: завершение генерации данных")
 					return
 				}
@@ -65,7 +66,7 @@ func (s *Service) startDataGeneration(entityChan chan<- repository.Entity) {
 					log.Println("Сервис: генерация тестовых данных завершена")
 					return
 				}
-			case <-s.done:
+			case <-s.ctx.Done():
 				log.Println("Сервис: завершение работы генерации по сигналу")
 				return
 			}
@@ -81,7 +82,7 @@ func (s *Service) startDataSaving(entityChan <-chan repository.Entity) {
 			// Вызываем синхронный метод сохранения в репозитории
 			s.repo.Save(entity)
 			log.Printf("Сервис: сохранена сущность %s", entity.GetID())
-		case <-s.done:
+		case <-s.ctx.Done():
 			log.Println("Сервис: завершение сохранения данных")
 			return
 		}

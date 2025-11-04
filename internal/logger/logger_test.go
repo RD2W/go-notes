@@ -2,6 +2,7 @@ package logger
 
 import (
 	"bytes"
+	"context"
 	"log"
 	"strings"
 	"sync"
@@ -39,11 +40,11 @@ func TestLogger_IntegrationWithService(t *testing.T) {
 	defer log.SetOutput(oldOutput)
 
 	// Создаем компоненты как в main()
-	done := make(chan struct{})
+	ctx, cancel := context.WithCancel(context.Background())
 
 	repo := repository.NewRepository()
-	svc := service.NewService(repo, done, 50*time.Millisecond)
-	logger := NewLogger(repo, done, 30*time.Millisecond)
+	svc := service.NewService(repo, ctx, 50*time.Millisecond)
+	logger := NewLogger(repo, ctx, 30*time.Millisecond)
 
 	// Запускаем компоненты
 	go logger.Start()
@@ -52,8 +53,8 @@ func TestLogger_IntegrationWithService(t *testing.T) {
 	// Ждем достаточно времени для обработки нескольких итераций
 	time.Sleep(100 * time.Millisecond)
 
-	// Закрываем канал после проверки
-	close(done)
+	// Завершаем работу через контекст
+	cancel()
 
 	// Ждем немного, чтобы логгер успел завершить работу и вывести сообщения
 	time.Sleep(10 * time.Millisecond)
@@ -72,18 +73,18 @@ func TestLogger_IntegrationWithService(t *testing.T) {
 	t.Logf("Вывод логгера:\n%s", output)
 }
 
-func TestLogger_StopWithDoneChannel(t *testing.T) {
+func TestLogger_StopWithContext(t *testing.T) {
 	var buf safeBuffer
 	oldOutput := log.Writer()
 	log.SetOutput(&buf)
 	defer log.SetOutput(oldOutput)
 
-	done := make(chan struct{})
+	ctx, cancel := context.WithCancel(context.Background())
 
 	repo := repository.NewRepository()
 
 	// Увеличиваем интервал логгера чтобы он реже проверял
-	logger := NewLogger(repo, done, 100*time.Millisecond)
+	logger := NewLogger(repo, ctx, 100*time.Millisecond)
 
 	// Запускаем компоненты
 	go logger.Start()
@@ -103,7 +104,7 @@ func TestLogger_StopWithDoneChannel(t *testing.T) {
 	time.Sleep(20 * time.Millisecond)
 
 	// Теперь останавливаем ДО того как логгер успеет проверить
-	close(done)
+	cancel()
 
 	// Даем время на завершение
 	time.Sleep(50 * time.Millisecond)
@@ -115,7 +116,7 @@ func TestLogger_StopWithDoneChannel(t *testing.T) {
 
 	// В этом тесте мы специально останавливаем логгер ДО того как он проверит заметки
 	// Поэтому он может не успеть залогировать заметки - это нормальное поведение
-	t.Logf("Тест завершен: логгер корректно остановился по сигналу done")
+	t.Logf("Тест завершен: логгер корректно остановился по сигналу контекста")
 }
 
 func TestLogger_MultipleNoteGeneration(t *testing.T) {
@@ -124,11 +125,11 @@ func TestLogger_MultipleNoteGeneration(t *testing.T) {
 	log.SetOutput(&buf)
 	defer log.SetOutput(oldOutput)
 
-	done := make(chan struct{})
-	defer close(done)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	repo := repository.NewRepository()
-	logger := NewLogger(repo, done, 40*time.Millisecond)
+	logger := NewLogger(repo, ctx, 40*time.Millisecond)
 
 	// Запускаем компоненты
 	go logger.Start()
@@ -185,11 +186,11 @@ func TestLogger_NoNotesScenario(t *testing.T) {
 	log.SetOutput(&buf)
 	defer log.SetOutput(oldOutput)
 
-	done := make(chan struct{})
-	defer close(done)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	repo := repository.NewRepository()
-	logger := NewLogger(repo, done, 30*time.Millisecond)
+	logger := NewLogger(repo, ctx, 30*time.Millisecond)
 
 	// Запускаем только логгер, но не отправляем заметки
 	go logger.Start()
@@ -210,12 +211,12 @@ func TestLogger_ConcurrentAccess(t *testing.T) {
 	log.SetOutput(&buf)
 	defer log.SetOutput(oldOutput)
 
-	done := make(chan struct{})
-	defer close(done)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	repo := repository.NewRepository()
 	// Увеличиваем интервал для стабильности
-	logger := NewLogger(repo, done, 30*time.Millisecond)
+	logger := NewLogger(repo, ctx, 30*time.Millisecond)
 
 	// Запускаем компоненты
 	go logger.Start()
@@ -259,11 +260,11 @@ func TestLogger_TimeFormatConsistency(t *testing.T) {
 	log.SetOutput(&buf)
 	defer log.SetOutput(oldOutput)
 
-	done := make(chan struct{})
-	defer close(done)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	repo := repository.NewRepository()
-	logger := NewLogger(repo, done, 50*time.Millisecond)
+	logger := NewLogger(repo, ctx, 50*time.Millisecond)
 
 	go logger.Start()
 
@@ -300,12 +301,12 @@ func TestLogger_SimpleCase(t *testing.T) {
 	log.SetOutput(&buf)
 	defer log.SetOutput(oldOutput)
 
-	done := make(chan struct{})
-	defer close(done)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	repo := repository.NewRepository()
 	// Очень короткий интервал для быстрого обнаружения
-	logger := NewLogger(repo, done, 10*time.Millisecond)
+	logger := NewLogger(repo, ctx, 10*time.Millisecond)
 
 	go logger.Start()
 
@@ -338,12 +339,12 @@ func TestLogger_SeesNotesBeforeStop(t *testing.T) {
 	log.SetOutput(&buf)
 	defer log.SetOutput(oldOutput)
 
-	done := make(chan struct{})
+	ctx, cancel := context.WithCancel(context.Background())
 
 	repo := repository.NewRepository()
 
 	// Очень короткий интервал для быстрого обнаружения
-	logger := NewLogger(repo, done, 10*time.Millisecond)
+	logger := NewLogger(repo, ctx, 10*time.Millisecond)
 
 	// Запускаем компоненты
 	go logger.Start()
@@ -362,7 +363,7 @@ func TestLogger_SeesNotesBeforeStop(t *testing.T) {
 	time.Sleep(30 * time.Millisecond)
 
 	// Теперь останавливаем
-	close(done)
+	cancel()
 
 	// Даем время на завершение
 	time.Sleep(20 * time.Millisecond)
@@ -384,13 +385,13 @@ func TestLogger_ImmediateStop(t *testing.T) {
 	log.SetOutput(&buf)
 	defer log.SetOutput(oldOutput)
 
-	done := make(chan struct{})
+	ctx, cancel := context.WithCancel(context.Background())
 
 	repo := repository.NewRepository()
-	logger := NewLogger(repo, done, 10*time.Millisecond)
+	logger := NewLogger(repo, ctx, 10*time.Millisecond)
 
 	// Останавливаем СРАЗУ ЖЕ
-	close(done)
+	cancel()
 
 	// Запускаем компоненты после остановки
 	go logger.Start()
@@ -416,13 +417,13 @@ func TestLogger_GracefulStop(t *testing.T) {
 	log.SetOutput(&buf)
 	defer log.SetOutput(oldOutput)
 
-	done := make(chan struct{})
-	defer close(done) // На этот раз используем defer
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel() // На этот раз используем defer
 
 	repo := repository.NewRepository()
 
 	// Нормальный интервал
-	logger := NewLogger(repo, done, 50*time.Millisecond)
+	logger := NewLogger(repo, ctx, 50*time.Millisecond)
 
 	// Запускаем компоненты
 	go logger.Start()
