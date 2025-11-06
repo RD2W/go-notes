@@ -19,10 +19,7 @@ import (
 const (
 	LoggerInterval        = 200 * time.Millisecond
 	DataGenInterval       = 500 * time.Millisecond
-	AppRunDuration        = 6 * time.Second
 	GracefulShutdownDelay = 100 * time.Millisecond
-
-	EntityChanBuffer = 10
 
 	TimeFormat = "2006-01-02 15:04:05"
 )
@@ -30,8 +27,8 @@ const (
 // Строковые константы
 const (
 	AppStartMsg         = "Запуск приложения с горутинами и каналами..."
-	DataGenStartMsg     = "Запуск генерации тестовых данных..."
 	AppShutdownMsg      = "Приложение \"Заметки\" успешно завершило выполнение программы!"
+	ShutdownStartMsg    = "Получен сигнал завершения, инициируем graceful shutdown..."
 	ResultsHeader       = "\n=== РЕЗУЛЬТАТЫ ===\n"
 	NoteCountMsg        = "Всего заметок создано: %d\n"
 	NoteDoesNotExistMsg = "Ошибка: заметка не существует"
@@ -64,7 +61,7 @@ func main() {
 
 	// Ждем сигнал завершения
 	<-sigChan
-	log.Println("Получен сигнал завершения, инициируем graceful shutdown...")
+	log.Println(ShutdownStartMsg)
 
 	// Отменяем контекст для завершения всех горутин
 	cancel()

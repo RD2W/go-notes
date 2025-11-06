@@ -10,6 +10,11 @@ import (
 	"github.com/rd2w/go-notes/internal/repository"
 )
 
+const (
+	EntityChanBuffer = 10
+	MaxNotesCount    = 10
+)
+
 // Service содержит бизнес-логику приложения
 type Service struct {
 	repo     *repository.Repository
@@ -29,7 +34,7 @@ func NewService(repo *repository.Repository, ctx context.Context, interval time.
 // Start запускает все горутины сервиса
 func (s *Service) Start() {
 	// Создаем канал для передачи сущностей между горутинами
-	entityChan := make(chan repository.Entity, 10)
+	entityChan := make(chan repository.Entity, EntityChanBuffer)
 
 	// Запускаем горутину для генерации данных
 	go s.startDataGeneration(entityChan)
@@ -62,7 +67,7 @@ func (s *Service) startDataGeneration(entityChan chan<- repository.Entity) {
 				}
 
 				noteCounter++
-				if noteCounter > 10 {
+				if noteCounter > MaxNotesCount {
 					log.Println("Сервис: генерация тестовых данных завершена")
 					return
 				}
