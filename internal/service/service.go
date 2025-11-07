@@ -17,13 +17,13 @@ const (
 
 // Service содержит бизнес-логику приложения
 type Service struct {
-	repo     *repository.Repository
+	repo     repository.Repository
 	ctx      context.Context
 	interval time.Duration
 }
 
 // NewService создает новый экземпляр сервиса
-func NewService(repo *repository.Repository, ctx context.Context, interval time.Duration) *Service {
+func NewService(repo repository.Repository, ctx context.Context, interval time.Duration) *Service {
 	return &Service{
 		repo:     repo,
 		ctx:      ctx,

@@ -10,13 +10,13 @@ import (
 
 // Logger отвечает за логирование изменений в данных
 type Logger struct {
-	repo     *repository.Repository
+	repo     repository.Repository
 	ctx      context.Context
 	interval time.Duration
 }
 
 // NewLogger создает новый экземпляр логгера
-func NewLogger(repo *repository.Repository, ctx context.Context, interval time.Duration) *Logger {
+func NewLogger(repo repository.Repository, ctx context.Context, interval time.Duration) *Logger {
 	return &Logger{
 		repo:     repo,
 		ctx:      ctx,

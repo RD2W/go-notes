@@ -12,6 +12,8 @@ import (
 	"github.com/rd2w/go-notes/internal/logger"
 	"github.com/rd2w/go-notes/internal/model"
 	"github.com/rd2w/go-notes/internal/repository"
+	"github.com/rd2w/go-notes/internal/repository/storage/fs"
+	"github.com/rd2w/go-notes/internal/repository/storage/ram"
 	"github.com/rd2w/go-notes/internal/service"
 )
 
@@ -50,8 +52,12 @@ func main() {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
 
+	// Явно регистрируем реализации
+	repository.Register(repository.RAM, ram.NewRamRepository)
+	repository.Register(repository.JSON, fs.NewJSONRepository)
+
 	// Инициализируем компоненты
-	repo := repository.NewRepository()
+	repo := repository.NewRepositoryByType(repository.JSON)
 	svc := service.NewService(repo, ctx, DataGenInterval)
 	newLogger := logger.NewLogger(repo, ctx, LoggerInterval)
 
