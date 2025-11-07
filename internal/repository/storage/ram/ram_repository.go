@@ -58,9 +58,16 @@ func (r *RamRepository) GetNotesCount() int {
 func (r *RamRepository) GetNewNotes(lastIndex int) []*model.Note {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+
+	// Обрабатываем отрицательные индексы как 0
+	if lastIndex < 0 {
+		lastIndex = 0
+	}
+
 	if lastIndex >= len(r.notes) {
 		return []*model.Note{}
 	}
+
 	newNotes := r.notes[lastIndex:]
 	result := make([]*model.Note, len(newNotes))
 	copy(result, newNotes)

@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/rd2w/go-notes/internal/model"
-	"github.com/rd2w/go-notes/internal/repository"
+	"github.com/rd2w/go-notes/internal/repository/storage/ram"
 	"github.com/rd2w/go-notes/internal/service"
 	"github.com/stretchr/testify/assert"
 )
@@ -42,7 +42,7 @@ func TestLogger_IntegrationWithService(t *testing.T) {
 	// Создаем компоненты как в main()
 	ctx, cancel := context.WithCancel(context.Background())
 
-	repo := repository.NewRepository()
+	repo := ram.NewRamRepository()
 	svc := service.NewService(repo, ctx, 50*time.Millisecond)
 	logger := NewLogger(repo, ctx, 30*time.Millisecond)
 
@@ -81,7 +81,7 @@ func TestLogger_StopWithContext(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	repo := repository.NewRepository()
+	repo := ram.NewRamRepository()
 
 	// Увеличиваем интервал логгера чтобы он реже проверял
 	logger := NewLogger(repo, ctx, 100*time.Millisecond)
@@ -128,7 +128,7 @@ func TestLogger_MultipleNoteGeneration(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	repo := repository.NewRepository()
+	repo := ram.NewRamRepository()
 	logger := NewLogger(repo, ctx, 40*time.Millisecond)
 
 	// Запускаем компоненты
@@ -189,7 +189,7 @@ func TestLogger_NoNotesScenario(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	repo := repository.NewRepository()
+	repo := ram.NewRamRepository()
 	logger := NewLogger(repo, ctx, 30*time.Millisecond)
 
 	// Запускаем только логгер, но не отправляем заметки
@@ -214,7 +214,7 @@ func TestLogger_ConcurrentAccess(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	repo := repository.NewRepository()
+	repo := ram.NewRamRepository()
 	// Увеличиваем интервал для стабильности
 	logger := NewLogger(repo, ctx, 30*time.Millisecond)
 
@@ -263,7 +263,7 @@ func TestLogger_TimeFormatConsistency(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	repo := repository.NewRepository()
+	repo := ram.NewRamRepository()
 	logger := NewLogger(repo, ctx, 50*time.Millisecond)
 
 	go logger.Start()
@@ -304,7 +304,7 @@ func TestLogger_SimpleCase(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	repo := repository.NewRepository()
+	repo := ram.NewRamRepository()
 	// Очень короткий интервал для быстрого обнаружения
 	logger := NewLogger(repo, ctx, 10*time.Millisecond)
 
@@ -341,7 +341,7 @@ func TestLogger_SeesNotesBeforeStop(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	repo := repository.NewRepository()
+	repo := ram.NewRamRepository()
 
 	// Очень короткий интервал для быстрого обнаружения
 	logger := NewLogger(repo, ctx, 10*time.Millisecond)
@@ -387,7 +387,7 @@ func TestLogger_ImmediateStop(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	repo := repository.NewRepository()
+	repo := ram.NewRamRepository()
 	logger := NewLogger(repo, ctx, 10*time.Millisecond)
 
 	// Останавливаем СРАЗУ ЖЕ
@@ -420,7 +420,7 @@ func TestLogger_GracefulStop(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel() // На этот раз используем defer
 
-	repo := repository.NewRepository()
+	repo := ram.NewRamRepository()
 
 	// Нормальный интервал
 	logger := NewLogger(repo, ctx, 50*time.Millisecond)

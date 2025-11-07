@@ -20,6 +20,13 @@ const (
 	TimeFormat     = "2006-01-02_15-04-05"
 )
 
+// Тестовые переменные, которые можно изменить в тестах
+var (
+	TestStorageDir     = StorageDir
+	TestNoteFilePrefix = NoteFilePrefix
+	TestTimeFormat     = TimeFormat
+)
+
 // JSONRepository реализация репозитория с хранением данных в JSON файлах
 type JSONRepository struct {
 	notes      []*model.Note
@@ -52,14 +59,14 @@ func NewJSONRepository() repository.Repository {
 // findLatestNoteFileTime находит время самого последнего файла с заметками
 func findLatestNoteFileTime() time.Time {
 	// Проверяем, существует ли директория
-	if _, err := os.Stat(StorageDir); os.IsNotExist(err) {
+	if _, err := os.Stat(TestStorageDir); os.IsNotExist(err) {
 		return time.Time{}
 	}
 
 	// Читаем содержимое директории
-	files, err := os.ReadDir(StorageDir)
+	files, err := os.ReadDir(TestStorageDir)
 	if err != nil {
-		log.Printf("Ошибка при чтении директории %s: %v", StorageDir, err)
+		log.Printf("Ошибка при чтении директории %s: %v", TestStorageDir, err)
 		return time.Time{}
 	}
 
@@ -71,10 +78,10 @@ func findLatestNoteFileTime() time.Time {
 		}
 
 		filename := file.Name()
-		if filepath.Ext(filename) == ".json" && len(filename) > len(NoteFilePrefix) && filename[:len(NoteFilePrefix)] == NoteFilePrefix {
+		if filepath.Ext(filename) == ".json" && len(filename) > len(TestNoteFilePrefix) && filename[:len(TestNoteFilePrefix)] == TestNoteFilePrefix {
 			// Извлекаем временную метку из имени файла
-			timeStr := filename[len(NoteFilePrefix)+1 : len(filename)-5] // убираем префикс_ и .json
-			if fileTime, err := time.Parse(TimeFormat, timeStr); err == nil {
+			timeStr := filename[len(TestNoteFilePrefix)+1 : len(filename)-5] // убираем префикс_ и .json
+			if fileTime, err := time.Parse(TestTimeFormat, timeStr); err == nil {
 				if fileTime.After(latestTime) {
 					latestTime = fileTime
 				}
@@ -130,6 +137,11 @@ func (r *JSONRepository) GetNewNotes(lastIndex int) []*model.Note {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
+	// Обрабатываем отрицательные индексы как 0
+	if lastIndex < 0 {
+		lastIndex = 0
+	}
+
 	if lastIndex >= len(r.notes) {
 		return []*model.Note{}
 	}
@@ -172,14 +184,14 @@ func (r *JSONRepository) LoadFromStorage() {
 // saveToJSON сохраняет данные в JSON файл с временной меткой запуска приложения
 func (r *JSONRepository) saveToJSON() error {
 	// Создаем директорию, если она не существует
-	if err := os.MkdirAll(StorageDir, 0755); err != nil {
-		return fmt.Errorf("не удалось создать директорию %s: %w", StorageDir, err)
+	if err := os.MkdirAll(TestStorageDir, 0755); err != nil {
+		return fmt.Errorf("не удалось создать директорию %s: %w", TestStorageDir, err)
 	}
 
 	// Формируем имя файла с временной меткой запуска приложения
-	timestamp := r.startTime.Format(TimeFormat)
-	filename := fmt.Sprintf("%s_%s.json", NoteFilePrefix, timestamp)
-	filePath := filepath.Join(StorageDir, filename)
+	timestamp := r.startTime.Format(TestTimeFormat)
+	filename := fmt.Sprintf("%s_%s.json", TestNoteFilePrefix, timestamp)
+	filePath := filepath.Join(TestStorageDir, filename)
 
 	// Создаем/перезаписываем файл
 	file, err := os.Create(filePath)
@@ -249,14 +261,14 @@ func (r *JSONRepository) loadFromJSONFile(filepath string) error {
 // findLatestFile находит файл с указанным префиксом, используя время запуска приложения
 func (r *JSONRepository) findLatestFile(prefix string) (string, error) {
 	// Проверяем, существует ли директория
-	if _, err := os.Stat(StorageDir); os.IsNotExist(err) {
-		return "", fmt.Errorf("директория %s не существует", StorageDir)
+	if _, err := os.Stat(TestStorageDir); os.IsNotExist(err) {
+		return "", fmt.Errorf("директория %s не существует", TestStorageDir)
 	}
 
 	// Формируем имя файла на основе времени запуска
-	timestamp := r.startTime.Format(TimeFormat)
+	timestamp := r.startTime.Format(TestTimeFormat)
 	filename := fmt.Sprintf("%s_%s.json", prefix, timestamp)
-	filePath := filepath.Join(StorageDir, filename)
+	filePath := filepath.Join(TestStorageDir, filename)
 
 	// Проверяем, существует ли файл
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
