@@ -1,10 +1,10 @@
 package model
 
 import (
-	"crypto/rand"
-	"encoding/base64"
 	"encoding/json"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // Note представляет сущность заметки
@@ -58,12 +58,7 @@ func (n *Note) SetContent(newContent string) {
 
 // generateID генерирует уникальный идентификатор
 func generateID() string {
-	b := make([]byte, 8)
-	_, err := rand.Read(b)
-	if err != nil {
-		panic("не удалось сгенерировать ID")
-	}
-	return base64.URLEncoding.EncodeToString(b)
+	return uuid.New().String()
 }
 
 // JSONNote вспомогательная структура для JSON сериализации
