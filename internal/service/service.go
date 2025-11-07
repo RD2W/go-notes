@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"time"
@@ -9,18 +10,23 @@ import (
 	"github.com/rd2w/go-notes/internal/repository"
 )
 
+const (
+	EntityChanBuffer = 10
+	MaxNotesCount    = 10
+)
+
 // Service содержит бизнес-логику приложения
 type Service struct {
 	repo     *repository.Repository
-	done     <-chan struct{}
+	ctx      context.Context
 	interval time.Duration
 }
 
 // NewService создает новый экземпляр сервиса
-func NewService(repo *repository.Repository, done <-chan struct{}, interval time.Duration) *Service {
+func NewService(repo *repository.Repository, ctx context.Context, interval time.Duration) *Service {
 	return &Service{
 		repo:     repo,
-		done:     done,
+		ctx:      ctx,
 		interval: interval,
 	}
 }
@@ -28,7 +34,7 @@ func NewService(repo *repository.Repository, done <-chan struct{}, interval time
 // Start запускает все горутины сервиса
 func (s *Service) Start() {
 	// Создаем канал для передачи сущностей между горутинами
-	entityChan := make(chan repository.Entity, 10)
+	entityChan := make(chan repository.Entity, EntityChanBuffer)
 
 	// Запускаем горутину для генерации данных
 	go s.startDataGeneration(entityChan)
@@ -55,17 +61,17 @@ func (s *Service) startDataGeneration(entityChan chan<- repository.Entity) {
 				select {
 				case entityChan <- note:
 					log.Printf("Сервис: создана заметка %d", noteCounter)
-				case <-s.done:
+				case <-s.ctx.Done():
 					log.Println("Сервис: завершение генерации данных")
 					return
 				}
 
 				noteCounter++
-				if noteCounter > 10 {
+				if noteCounter > MaxNotesCount {
 					log.Println("Сервис: генерация тестовых данных завершена")
 					return
 				}
-			case <-s.done:
+			case <-s.ctx.Done():
 				log.Println("Сервис: завершение работы генерации по сигналу")
 				return
 			}
@@ -81,7 +87,7 @@ func (s *Service) startDataSaving(entityChan <-chan repository.Entity) {
 			// Вызываем синхронный метод сохранения в репозитории
 			s.repo.Save(entity)
 			log.Printf("Сервис: сохранена сущность %s", entity.GetID())
-		case <-s.done:
+		case <-s.ctx.Done():
 			log.Println("Сервис: завершение сохранения данных")
 			return
 		}

@@ -1,8 +1,12 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/rd2w/go-notes/internal/logger"
@@ -15,10 +19,7 @@ import (
 const (
 	LoggerInterval        = 200 * time.Millisecond
 	DataGenInterval       = 500 * time.Millisecond
-	AppRunDuration        = 6 * time.Second
 	GracefulShutdownDelay = 100 * time.Millisecond
-
-	EntityChanBuffer = 10
 
 	TimeFormat = "2006-01-02 15:04:05"
 )
@@ -26,8 +27,8 @@ const (
 // Строковые константы
 const (
 	AppStartMsg         = "Запуск приложения с горутинами и каналами..."
-	DataGenStartMsg     = "Запуск генерации тестовых данных..."
 	AppShutdownMsg      = "Приложение \"Заметки\" успешно завершило выполнение программы!"
+	ShutdownStartMsg    = "Получен сигнал завершения, инициируем graceful shutdown..."
 	ResultsHeader       = "\n=== РЕЗУЛЬТАТЫ ===\n"
 	NoteCountMsg        = "Всего заметок создано: %d\n"
 	NoteDoesNotExistMsg = "Ошибка: заметка не существует"
@@ -41,23 +42,29 @@ const (
 
 func main() {
 	log.Println(AppStartMsg)
-	// Создаем канал для завершения
-	done := make(chan struct{})
+
+	// Создаем контекст с отменой для graceful shutdown
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// Обработка сигналов ОС
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
 
 	// Инициализируем компоненты
 	repo := repository.NewRepository()
-	svc := service.NewService(repo, done, DataGenInterval)
-	newLogger := logger.NewLogger(repo, done, LoggerInterval)
+	svc := service.NewService(repo, ctx, DataGenInterval)
+	newLogger := logger.NewLogger(repo, ctx, LoggerInterval)
 
 	// Запускаем горутины
 	go newLogger.Start() // Логгер мониторит изменения
-	svc.Start()          // Сервис запускает генерацию и сохранение данных
+	go svc.Start()       // Сервис запускает генерацию и сохранение данных
 
-	// Ждем некоторое время для демонстрации работы
-	time.Sleep(AppRunDuration)
+	// Ждем сигнал завершения
+	<-sigChan
+	log.Println(ShutdownStartMsg)
 
-	// Сигнал завершения всем горутинам
-	close(done)
+	// Отменяем контекст для завершения всех горутин
+	cancel()
 
 	// Даем время на корректное завершение
 	time.Sleep(GracefulShutdownDelay)

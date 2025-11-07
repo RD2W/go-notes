@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"context"
 	"log"
 	"time"
 
@@ -10,15 +11,15 @@ import (
 // Logger отвечает за логирование изменений в данных
 type Logger struct {
 	repo     *repository.Repository
-	done     <-chan struct{}
+	ctx      context.Context
 	interval time.Duration
 }
 
 // NewLogger создает новый экземпляр логгера
-func NewLogger(repo *repository.Repository, done <-chan struct{}, interval time.Duration) *Logger {
+func NewLogger(repo *repository.Repository, ctx context.Context, interval time.Duration) *Logger {
 	return &Logger{
 		repo:     repo,
-		done:     done,
+		ctx:      ctx,
 		interval: interval,
 	}
 }
@@ -49,7 +50,7 @@ func (l *Logger) Start() {
 
 					lastNoteCount = currentNoteCount
 				}
-			case <-l.done:
+			case <-l.ctx.Done():
 				log.Println("Логгер: завершение работы")
 				return
 			}
