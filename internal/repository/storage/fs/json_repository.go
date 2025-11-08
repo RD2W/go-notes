@@ -29,10 +29,11 @@ var (
 
 // JSONRepository реализация репозитория с хранением данных в JSON файлах
 type JSONRepository struct {
-	notes      []*model.Note
-	notesIndex map[string]*model.Note
-	mu         sync.RWMutex
-	startTime  time.Time // Время запуска репозитория для формирования имени файла
+	notes             []*model.Note
+	notesIndex        map[string]*model.Note
+	mu                sync.RWMutex
+	startTime         time.Time // Время запуска репозитория для формирования имени файла
+	initialNotesCount int       // Количество заметок, загруженных из файла при инициализации
 }
 
 // NewJSONRepository создает новый экземпляр JSON репозитория (возвращает интерфейс)
@@ -45,9 +46,10 @@ func NewJSONRepository() repository.Repository {
 	}
 
 	repo := &JSONRepository{
-		notes:      make([]*model.Note, 0),
-		notesIndex: make(map[string]*model.Note),
-		startTime:  latestTime,
+		notes:             make([]*model.Note, 0),
+		notesIndex:        make(map[string]*model.Note),
+		startTime:         latestTime,
+		initialNotesCount: 0,
 	}
 
 	// Загружаем данные из хранилища при создании репозитория
@@ -142,6 +144,12 @@ func (r *JSONRepository) GetNewNotes(lastIndex int) []*model.Note {
 		lastIndex = 0
 	}
 
+	// Если индекс меньше начального количества заметок (загруженных из файла),
+	// начинаем с начального количества, чтобы не возвращать загруженные заметки как "новые"
+	if lastIndex < r.initialNotesCount {
+		lastIndex = r.initialNotesCount
+	}
+
 	if lastIndex >= len(r.notes) {
 		return []*model.Note{}
 	}
@@ -179,6 +187,9 @@ func (r *JSONRepository) LoadFromStorage() {
 	}
 
 	fmt.Printf("Загружено %d заметок из файла %s\n", len(r.notes), noteFile)
+
+	// Сохраняем количество загруженных заметок как начальное
+	r.initialNotesCount = len(r.notes)
 }
 
 // saveToJSON сохраняет данные в JSON файл с временной меткой запуска приложения

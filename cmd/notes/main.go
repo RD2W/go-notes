@@ -32,7 +32,7 @@ const (
 	AppShutdownMsg      = "Приложение \"Заметки\" успешно завершило выполнение программы!"
 	ShutdownStartMsg    = "Получен сигнал завершения, инициируем graceful shutdown..."
 	ResultsHeader       = "\n=== РЕЗУЛЬТАТЫ ===\n"
-	NoteCountMsg        = "Всего заметок создано: %d\n"
+	NoteCountMsg        = "Всего заметок в хранилище данных: %d\n"
 	NoteDoesNotExistMsg = "Ошибка: заметка не существует"
 	NoteHeaderMsg       = "Заметка %d:\n"
 	NoteIDMsg           = "  ID: %s\n"
