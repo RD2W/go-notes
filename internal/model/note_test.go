@@ -1,7 +1,6 @@
 package model
 
 import (
-	"encoding/base64"
 	"fmt"
 	"testing"
 	"time"
@@ -261,11 +260,31 @@ func TestNoteIDGeneration(t *testing.T) {
 		t.Error("All note IDs should be unique")
 	}
 
-	// Проверяем формат ID (base64 URL encoding)
+	// Проверяем формат UUID
 	id := note1.GetID()
-	_, err := base64.URLEncoding.DecodeString(id)
-	if err != nil {
-		t.Errorf("Note ID should be valid base64 URL encoding: %v", err)
+
+	// Проверяем длину UUID
+	if len(id) != 36 {
+		t.Errorf("Note ID should be 36 characters long, got %d", len(id))
+	}
+
+	// Проверяем, что UUID имеет 4 дефиса на правильных позициях
+	dashes := []int{}
+	for i, char := range id {
+		if char == '-' {
+			dashes = append(dashes, i)
+		}
+	}
+
+	expectedDashes := []int{8, 13, 18, 23}
+	if len(dashes) != 4 {
+		t.Errorf("Expected 4 dashes in UUID, got %d", len(dashes))
+	} else {
+		for i, expectedPos := range expectedDashes {
+			if dashes[i] != expectedPos {
+				t.Errorf("Expected dash at position %d, got at position %d", expectedPos, dashes[i])
+			}
+		}
 	}
 }
 
@@ -318,22 +337,40 @@ func TestNoteIDLengthAndFormat(t *testing.T) {
 	note := NewNote("Test", "Content")
 	id := note.GetID()
 
-	// Проверяем длину ID (base64 от 8 байт = 11 символов без padding или 12 с padding)
-	if len(id) != 11 && len(id) != 12 {
-		t.Errorf("Expected ID length 11 or 12, got %d for ID %q", len(id), id)
+	// Проверяем длину ID (UUID в формате string имеет длину 36 символов)
+	if len(id) != 36 {
+		t.Errorf("Expected ID length 36, got %d for ID %q", len(id), id)
 	}
 
-	// Проверяем что ID состоит из валидных base64 URL символов
-	isValidBase64URLChar := func(char rune) bool {
-		return (char >= 'A' && char <= 'Z') ||
-			(char >= 'a' && char <= 'z') ||
+	// Проверяем формат UUID
+	isValidUUIDChar := func(char rune) bool {
+		return (char >= 'a' && char <= 'f') ||
 			(char >= '0' && char <= '9') ||
-			char == '-' || char == '_' || char == '='
+			char == '-'
 	}
 
 	for _, char := range id {
-		if !isValidBase64URLChar(char) {
-			t.Errorf("ID contains invalid base64 URL character: %c", char)
+		if !isValidUUIDChar(char) {
+			t.Errorf("ID contains invalid UUID character: %c", char)
+		}
+	}
+
+	// Проверяем, что UUID имеет 4 дефиса на правильных позициях
+	dashes := []int{}
+	for i, char := range id {
+		if char == '-' {
+			dashes = append(dashes, i)
+		}
+	}
+
+	expectedDashes := []int{8, 13, 18, 23}
+	if len(dashes) != 4 {
+		t.Errorf("Expected 4 dashes in UUID, got %d", len(dashes))
+	} else {
+		for i, expectedPos := range expectedDashes {
+			if dashes[i] != expectedPos {
+				t.Errorf("Expected dash at position %d, got at position %d", expectedPos, dashes[i])
+			}
 		}
 	}
 }

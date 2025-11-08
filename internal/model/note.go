@@ -1,8 +1,10 @@
 package model
 
 import (
-	"crypto/rand"
-	"encoding/base64"
+	"encoding/json"
+	"time"
+
+	"github.com/google/uuid"
 )
 
 // Note представляет сущность заметки
@@ -56,10 +58,41 @@ func (n *Note) SetContent(newContent string) {
 
 // generateID генерирует уникальный идентификатор
 func generateID() string {
-	b := make([]byte, 8)
-	_, err := rand.Read(b)
-	if err != nil {
-		panic("не удалось сгенерировать ID")
+	return uuid.New().String()
+}
+
+// JSONNote вспомогательная структура для JSON сериализации
+type JSONNote struct {
+	ID        string    `json:"id"`
+	Title     string    `json:"title"`
+	Content   string    `json:"content"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// MarshalJSON реализует интерфейс json.Marshaler
+func (n *Note) MarshalJSON() ([]byte, error) {
+	return json.Marshal(JSONNote{
+		ID:        n.id,
+		Title:     n.title,
+		Content:   n.content,
+		CreatedAt: n.createdAt,
+		UpdatedAt: n.updatedAt,
+	})
+}
+
+// UnmarshalJSON реализует интерфейс json.Unmarshaler
+func (n *Note) UnmarshalJSON(data []byte) error {
+	var jsonNote JSONNote
+	if err := json.Unmarshal(data, &jsonNote); err != nil {
+		return err
 	}
-	return base64.URLEncoding.EncodeToString(b)
+
+	n.id = jsonNote.ID
+	n.title = jsonNote.Title
+	n.content = jsonNote.Content
+	n.createdAt = jsonNote.CreatedAt
+	n.updatedAt = jsonNote.UpdatedAt
+
+	return nil
 }
