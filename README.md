@@ -117,8 +117,10 @@ curl -X POST http://localhost:8080/api/users \
 ```bash
 curl -X POST http://localhost:8080/api/login \
   -H "Content-Type: application/json" \
-  -d '{"username": "testuser", "password": "password123"}'
+ -d '{"username": "testuser", "password": "password123"}'
 ```
+
+После успешной аутентификации вы получите JWT-токен. При использовании токена в других запросах не включайте фигурные скобки `{}` - они используются только для обозначения плейсхолдера в примерах.
 
 #### Получение всех пользователей
 ```bash

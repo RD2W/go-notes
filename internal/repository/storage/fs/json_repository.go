@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
-	"time"
 
 	"github.com/rd2w/go-notes/internal/model"
 	"github.com/rd2w/go-notes/internal/repository"
@@ -61,20 +60,9 @@ func NewJSONRepository() repository.Repository {
 	return repo
 }
 
-// findLatestNoteFileTime проверяет наличие файла с заметками
-func findLatestNoteFileTime() time.Time {
-	// Проверяем, существует ли файл notes.json
-	filePath := filepath.Join(TestStorageDir, TestNotesFileName)
-	if _, err := os.Stat(filePath); err == nil {
-		// Если файл существует, возвращаем текущее время
-		return time.Now()
-	}
-
-	return time.Time{}
-}
-
 // Save сохраняет сущность в соответствующий слайс и в JSON файл
 func (r *JSONRepository) Save(entity repository.Entity) {
+	log.Printf("Репозиторий: вызван метод Save для сущности типа %s с ID=%s", entity.GetType(), entity.GetID())
 	r.mu.Lock()
 	defer r.mu.Unlock()
 

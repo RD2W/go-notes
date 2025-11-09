@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -35,7 +36,9 @@ func GenerateJWT(username string) (string, error) {
 func AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
+		log.Printf("Получен заголовок Authorization: %s", authHeader)
 		if authHeader == "" {
+			log.Printf("Заголовок Authorization отсутствует")
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization header is required"})
 			c.Abort()
 			return
@@ -43,22 +46,26 @@ func AuthMiddleware() gin.HandlerFunc {
 
 		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 		if tokenString == authHeader {
+			log.Printf("Заголовок Authorization не содержит префикс Bearer")
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Bearer token is required"})
 			c.Abort()
 			return
 		}
 
+		log.Printf("Извлечен JWT токен: %s", tokenString)
 		claims := &Claims{}
 		token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
 			return jwtKey, nil
 		})
 
 		if err != nil || !token.Valid {
+			log.Printf("Ошибка при проверке JWT токена: %v", err)
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
 			c.Abort()
 			return
 		}
 
+		log.Printf("JWT токен действителен, пользователь: %s", claims.Username)
 		c.Set("username", claims.Username)
 		c.Next()
 	}

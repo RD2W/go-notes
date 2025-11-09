@@ -59,7 +59,7 @@ func main() {
 		notes := api.Group("/notes")
 		notes.Use(middleware.AuthMiddleware())
 		{
-			notes.POST("/", noteHandler.CreateNote)
+			notes.POST("", noteHandler.CreateNote)
 			notes.GET("/:id", noteHandler.GetNote)
 			notes.PUT("/:id", noteHandler.UpdateNote)
 			notes.DELETE("/:id", noteHandler.DeleteNote)

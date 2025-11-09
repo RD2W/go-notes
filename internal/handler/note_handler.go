@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"log"
 	"net/http"
 	_ "strconv"
 
@@ -32,14 +33,19 @@ func NewNoteHandler(repo repository.Repository) *NoteHandler {
 // @Failure 400 {object} map[string]string
 // @Router /api/notes [post]
 func (h *NoteHandler) CreateNote(c *gin.Context) {
+	log.Printf("CreateNote handler вызван")
 	var req createNoteRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		log.Printf("Ошибка при привязке JSON: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
+	log.Printf("Получен запрос на создание заметки: title='%s', content='%s'", req.Title, req.Content)
 	note := model.NewNote(req.Title, req.Content)
+	log.Printf("Создана новая заметка с ID: %s", note.GetID())
 	h.repo.Save(note)
+	log.Printf("Заметка успешно сохранена в репозиторий")
 	c.JSON(http.StatusCreated, note)
 }
 
