@@ -1,6 +1,14 @@
 package main
 
 import (
+	"context"
+	"log"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
 	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
@@ -83,8 +91,36 @@ func main() {
 		c.JSON(200, gin.H{"status": "ok"})
 	})
 
-	// Запускаем сервер на порту 8080
-	if err := r.Run(":8080"); err != nil {
-		panic(err)
+	// Создаем HTTP сервер
+	srv := &http.Server{
+		Addr:    ":8080",
+		Handler: r,
 	}
+
+	// Канал для получения сигнала завершения
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	// Запускаем сервер в отдельной горутине
+	go func() {
+		log.Printf("Веб-сервер запущен на порту %s", srv.Addr)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Ошибка при запуске веб-сервера: %v", err)
+		}
+	}()
+
+	// Ждем сигнал завершения
+	<-sigChan
+	log.Println("Получен сигнал завершения, инициируем graceful shutdown...")
+
+	// Создаем контекст с таймаутом для graceful shutdown
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Останавливаем сервер с graceful shutdown
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Fatalf("Ошибка при graceful shutdown веб-сервера: %v", err)
+	}
+
+	log.Println("Веб-сервер остановлен")
 }
