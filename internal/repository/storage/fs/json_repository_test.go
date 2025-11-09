@@ -91,9 +91,13 @@ func TestJSONRepository_SaveUnsupportedEntity(t *testing.T) {
 	// Проверяем, что заметки не были сохранены для неподдерживаемых типов
 	assert.Equal(t, 0, repo.GetNotesCount(), "Не должно быть сохраненных заметок для неподдерживаемых сущностей")
 
+	// Проверяем, что сущность была сохранена в общий слайс
+	entities := repo.GetAllByType("unsupported")
+	assert.Len(t, entities, 1, "Должна быть одна неподдерживаемая сущность")
+
 	// Проверяем вывод в лог
 	logOutput := buf.String()
-	assert.Contains(t, logOutput, "Репозиторий: неподдерживаемый тип сущности")
+	assert.Contains(t, logOutput, "Репозиторий: сохранена сущность")
 }
 
 // TestJSONRepository_SaveMultipleNotes тестирует сохранение нескольких заметок
@@ -386,8 +390,7 @@ func TestJSONRepository_SaveToFile(t *testing.T) {
 	// Проверяем, что файл имеет правильное имя
 	var noteFileFound bool
 	for _, file := range files {
-		if filepath.Ext(file.Name()) == ".json" && len(file.Name()) > len(fs.TestNoteFilePrefix) &&
-			file.Name()[:len(fs.TestNoteFilePrefix)] == fs.TestNoteFilePrefix {
+		if file.Name() == fs.TestNotesFileName {
 			noteFileFound = true
 			break
 		}
@@ -407,9 +410,8 @@ func TestJSONRepository_LoadFromStorage(t *testing.T) {
 	note := model.NewNote("Loaded Note", "Loaded Content")
 	notes := []*model.Note{note}
 
-	// Формируем имя файла с временной меткой
-	timestamp := time.Now().Format(fs.TestTimeFormat)
-	filename := filepath.Join(tempDir, fs.TestNoteFilePrefix+"_"+timestamp+".json")
+	// Формируем имя файла
+	filename := filepath.Join(tempDir, fs.TestNotesFileName)
 
 	file, err := os.Create(filename)
 	require.NoError(t, err)

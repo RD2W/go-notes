@@ -15,18 +15,18 @@ import (
 )
 
 const (
-	StorageDir     = "data"
-	NoteFilePrefix = "notes"
-	UserFilePrefix = "users"
-	TimeFormat     = "2006-01-02_15-04-05"
+	StorageDir    = "data"
+	NotesFileName = "notes.json"
+	UsersFileName = "users.json"
+	TimeFormat    = "2006-01-02_15-04-05"
 )
 
 // Тестовые переменные, которые можно изменить в тестах
 var (
-	TestStorageDir     = StorageDir
-	TestNoteFilePrefix = NoteFilePrefix
-	TestUserFilePrefix = UserFilePrefix
-	TestTimeFormat     = TimeFormat
+	TestStorageDir    = StorageDir
+	TestNotesFileName = NotesFileName
+	TestUsersFileName = UsersFileName
+	TestTimeFormat    = TimeFormat
 )
 
 // JSONRepository реализация репозитория с хранением данных в JSON файлах
@@ -38,20 +38,12 @@ type JSONRepository struct {
 	entities          map[string][]repository.Entity // Хранит все сущности по типу
 	entityIndex       map[string]repository.Entity   // Для быстрого поиска по ID
 	mu                sync.RWMutex
-	startTime         time.Time // Время запуска репозитория для формирования имени файла
-	initialNotesCount int       // Количество заметок, загруженных из файла при инициализации
-	initialUsersCount int       // Количество пользователей, загруженных из файла при инициализации
+	initialNotesCount int // Количество заметок, загруженных из файла при инициализации
+	initialUsersCount int // Количество пользователей, загруженных из файла при инициализации
 }
 
 // NewJSONRepository создает новый экземпляр JSON репозитория (возвращает интерфейс)
 func NewJSONRepository() repository.Repository {
-	// Проверяем, есть ли уже существующие файлы с заметками
-	latestTime := findLatestNoteFileTime()
-	if latestTime.IsZero() {
-		// Если файлов нет, используем текущее время
-		latestTime = time.Now()
-	}
-
 	repo := &JSONRepository{
 		notes:             make([]*model.Note, 0),
 		notesIndex:        make(map[string]*model.Note),
@@ -59,7 +51,6 @@ func NewJSONRepository() repository.Repository {
 		usersIndex:        make(map[string]*model.User),
 		entities:          make(map[string][]repository.Entity),
 		entityIndex:       make(map[string]repository.Entity),
-		startTime:         latestTime,
 		initialNotesCount: 0,
 		initialUsersCount: 0,
 	}
@@ -70,40 +61,16 @@ func NewJSONRepository() repository.Repository {
 	return repo
 }
 
-// findLatestNoteFileTime находит время самого последнего файла с заметками
+// findLatestNoteFileTime проверяет наличие файла с заметками
 func findLatestNoteFileTime() time.Time {
-	// Проверяем, существует ли директория
-	if _, err := os.Stat(TestStorageDir); os.IsNotExist(err) {
-		return time.Time{}
+	// Проверяем, существует ли файл notes.json
+	filePath := filepath.Join(TestStorageDir, TestNotesFileName)
+	if _, err := os.Stat(filePath); err == nil {
+		// Если файл существует, возвращаем текущее время
+		return time.Now()
 	}
 
-	// Читаем содержимое директории
-	files, err := os.ReadDir(TestStorageDir)
-	if err != nil {
-		log.Printf("Ошибка при чтении директории %s: %v", TestStorageDir, err)
-		return time.Time{}
-	}
-
-	var latestTime time.Time
-
-	for _, file := range files {
-		if file.IsDir() {
-			continue
-		}
-
-		filename := file.Name()
-		if filepath.Ext(filename) == ".json" && len(filename) > len(TestNoteFilePrefix) && filename[:len(TestNoteFilePrefix)] == TestNoteFilePrefix {
-			// Извлекаем временную метку из имени файла
-			timeStr := filename[len(TestNoteFilePrefix)+1 : len(filename)-5] // убираем префикс_ и .json
-			if fileTime, err := time.Parse(TestTimeFormat, timeStr); err == nil {
-				if fileTime.After(latestTime) {
-					latestTime = fileTime
-				}
-			}
-		}
-	}
-
-	return latestTime
+	return time.Time{}
 }
 
 // Save сохраняет сущность в соответствующий слайс и в JSON файл
@@ -177,12 +144,6 @@ func (r *JSONRepository) GetNewNotes(lastIndex int) []*model.Note {
 		lastIndex = 0
 	}
 
-	// Если индекс меньше начального количества заметок (загруженных из файла),
-	// начинаем с начального количества, чтобы не возвращать загруженные заметки как "новые"
-	if lastIndex < r.initialNotesCount {
-		lastIndex = r.initialNotesCount
-	}
-
 	if lastIndex >= len(r.notes) {
 		return []*model.Note{}
 	}
@@ -208,10 +169,12 @@ func (r *JSONRepository) LoadFromStorage() {
 // loadNotesFromStorage загружает заметки из JSON файла
 func (r *JSONRepository) loadNotesFromStorage() {
 	// Находим файл с данными для заметок
-	noteFile, err := r.findLatestFile(TestNoteFilePrefix)
-	if err != nil {
+	noteFile := filepath.Join(TestStorageDir, TestNotesFileName)
+
+	// Проверяем, существует ли файл
+	if _, err := os.Stat(noteFile); os.IsNotExist(err) {
 		// Если файл не найден, начинаем с пустого репозитория
-		log.Printf("Файл с заметками не найден, начнем с пустого репозитория: %v", err)
+		log.Printf("Файл с заметками %s не найден, начнем с пустого репозитория", noteFile)
 		return
 	}
 
@@ -219,13 +182,6 @@ func (r *JSONRepository) loadNotesFromStorage() {
 	if err := r.loadNotesFromJSONFile(noteFile); err != nil {
 		fmt.Printf("Ошибка при загрузке заметок из файла %s: %v\n", noteFile, err)
 		return
-	}
-
-	// Обновляем startTime на основе времени файла
-	filename := filepath.Base(noteFile)
-	timeStr := filename[len(TestNoteFilePrefix)+1 : len(filename)-5] // убираем префикс_ и .json
-	if fileTime, err := time.Parse(TimeFormat, timeStr); err == nil {
-		r.startTime = fileTime
 	}
 
 	fmt.Printf("Загружено %d заметок из файла %s\n", len(r.notes), noteFile)
@@ -237,10 +193,12 @@ func (r *JSONRepository) loadNotesFromStorage() {
 // loadUsersFromStorage загружает пользователей из JSON файла
 func (r *JSONRepository) loadUsersFromStorage() {
 	// Находим файл с данными для пользователей
-	userFile, err := r.findLatestUserFile(TestUserFilePrefix)
-	if err != nil {
+	userFile := filepath.Join(TestStorageDir, TestUsersFileName)
+
+	// Проверяем, существует ли файл
+	if _, err := os.Stat(userFile); os.IsNotExist(err) {
 		// Если файл не найден, начинаем с пустого репозитория
-		log.Printf("Файл с пользователями не найден, начнем с пустого репозитория: %v", err)
+		log.Printf("Файл с пользователями %s не найден, начнем с пустого репозитория", userFile)
 		return
 	}
 
@@ -256,16 +214,15 @@ func (r *JSONRepository) loadUsersFromStorage() {
 	r.initialUsersCount = len(r.users)
 }
 
-// saveNotesToJSON сохраняет заметки в JSON файл с временной меткой запуска приложения
+// saveNotesToJSON сохраняет заметки в JSON файл
 func (r *JSONRepository) saveNotesToJSON() error {
 	// Создаем директорию, если она не существует
 	if err := os.MkdirAll(TestStorageDir, 0755); err != nil {
 		return fmt.Errorf("не удалось создать директорию %s: %w", TestStorageDir, err)
 	}
 
-	// Формируем имя файла с временной меткой запуска приложения
-	timestamp := r.startTime.Format(TestTimeFormat)
-	filename := fmt.Sprintf("%s_%s.json", TestNoteFilePrefix, timestamp)
+	// Формируем имя файла
+	filename := TestNotesFileName
 	filePath := filepath.Join(TestStorageDir, filename)
 
 	// Создаем/перезаписываем файл
@@ -289,16 +246,15 @@ func (r *JSONRepository) saveNotesToJSON() error {
 	return nil
 }
 
-// saveUsersToJSON сохраняет пользователей в JSON файл с временной меткой запуска приложения
+// saveUsersToJSON сохраняет пользователей в JSON файл
 func (r *JSONRepository) saveUsersToJSON() error {
 	// Создаем директорию, если она не существует
 	if err := os.MkdirAll(TestStorageDir, 0755); err != nil {
 		return fmt.Errorf("не удалось создать директорию %s: %w", TestStorageDir, err)
 	}
 
-	// Формируем имя файла с временной меткой запуска приложения
-	timestamp := r.startTime.Format(TestTimeFormat)
-	filename := fmt.Sprintf("%s_%s.json", TestUserFilePrefix, timestamp)
+	// Формируем имя файла
+	filename := TestUsersFileName
 	filePath := filepath.Join(TestStorageDir, filename)
 
 	// Создаем/перезаписываем файл
@@ -339,9 +295,8 @@ func (r *JSONRepository) saveEntitiesToJSON(entityType string) error {
 		return fmt.Errorf("не удалось создать директорию %s: %w", TestStorageDir, err)
 	}
 
-	// Формируем имя файла с временной меткой запуска приложения
-	timestamp := r.startTime.Format(TestTimeFormat)
-	filename := fmt.Sprintf("%ss_%s.json", entityType, timestamp) // например, "items_2006-01-02_15-04-05.json"
+	// Формируем имя файла
+	filename := fmt.Sprintf("%ss.json", entityType) // например, "items.json"
 	filePath := filepath.Join(TestStorageDir, filename)
 
 	// Создаем/перезаписываем файл
@@ -451,46 +406,6 @@ func (r *JSONRepository) loadUsersFromJSONFile(filepath string) error {
 	}
 
 	return nil
-}
-
-// findLatestFile находит файл с указанным префиксом, используя время запуска приложения
-func (r *JSONRepository) findLatestFile(prefix string) (string, error) {
-	// Проверяем, существует ли директория
-	if _, err := os.Stat(TestStorageDir); os.IsNotExist(err) {
-		return "", fmt.Errorf("директория %s не существует", TestStorageDir)
-	}
-
-	// Формируем имя файла на основе времени запуска
-	timestamp := r.startTime.Format(TestTimeFormat)
-	filename := fmt.Sprintf("%s_%s.json", prefix, timestamp)
-	filePath := filepath.Join(TestStorageDir, filename)
-
-	// Проверяем, существует ли файл
-	if _, err := os.Stat(filePath); os.IsNotExist(err) {
-		return "", fmt.Errorf("файл %s не существует", filePath)
-	}
-
-	return filePath, nil
-}
-
-// findLatestUserFile находит файл с указанным префиксом для пользователей
-func (r *JSONRepository) findLatestUserFile(prefix string) (string, error) {
-	// Проверяем, существует ли директория
-	if _, err := os.Stat(TestStorageDir); os.IsNotExist(err) {
-		return "", fmt.Errorf("директория %s не существует", TestStorageDir)
-	}
-
-	// Формируем имя файла на основе времени запуска
-	timestamp := r.startTime.Format(TestTimeFormat)
-	filename := fmt.Sprintf("%s_%s.json", prefix, timestamp)
-	filePath := filepath.Join(TestStorageDir, filename)
-
-	// Проверяем, существует ли файл
-	if _, err := os.Stat(filePath); os.IsNotExist(err) {
-		return "", fmt.Errorf("файл %s не существует", filePath)
-	}
-
-	return filePath, nil
 }
 
 // GetAllByType возвращает все сущности указанного типа
