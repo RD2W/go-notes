@@ -16,4 +16,7 @@ type Repository interface {
 	GetAllNotes() []*model.Note
 	GetNotesCount() int
 	GetNewNotes(lastIndex int) []*model.Note
+	GetAllByType(entityType string) []Entity
+	GetByID(entityType, id string) Entity
+	DeleteByID(entityType, id string) bool
 }
