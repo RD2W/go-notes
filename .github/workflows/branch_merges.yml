@@ -58,7 +58,7 @@ jobs:
           cache: true
 
       - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v8
+        uses: golangci/golangci-lint-action@v9
         with:
           #install-mode: goinstall
           version: latest
@@ -132,10 +132,12 @@ jobs:
           
           # Собираем основное приложение
           echo "🔨 Building main application..."
-          go build -o dist/notes -v -ldflags="-s -w" ./cmd/notes
+          go build -o dist/grpc-client -v -ldflags="-s -w" ./cmd/grpc-client
+          go build -o dist/grpc-server -v -ldflags="-s -w" ./cmd/grpc-server
+          go build -o dist/web-server -v -ldflags="-s -w" ./cmd/web-server
           
-          # Проверяем что бинарник создан
-          if [ -f dist/notes ]; then
+          # Проверяем что все бинарники созданы
+          if [ -f dist/grpc-client ] && [ -f dist/grpc-server ] && [ -f dist/web-server ]; then
             echo "✅ Build successful!"
             ls -la dist/
           else
