@@ -64,7 +64,7 @@ func TestRepository_Save(t *testing.T) {
 			name:          "Save unsupported entity",
 			entity:        &mockEntity{id: "test", entityType: "unsupported"},
 			expectedCount: 0,
-			logContains:   "Репозиторий: неподдерживаемый тип сущности",
+			logContains:   "Репозиторий: сохранена сущность unsupported ID=test",
 		},
 	}
 
