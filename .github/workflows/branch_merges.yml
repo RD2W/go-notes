@@ -54,11 +54,11 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version: '1.25'
-          cache: true
+          go-version: '1.25.4'
+          cache: false
 
       - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v8
+        uses: golangci/golangci-lint-action@v9
         with:
           #install-mode: goinstall
           version: latest
@@ -74,7 +74,7 @@ jobs:
 
     strategy:
       matrix:
-        go-version: ['1.25']
+        go-version: ['1.25.4']
         os: [ubuntu-latest]
 
     steps:
@@ -91,7 +91,7 @@ jobs:
 
       - name: Run comprehensive tests
         run: |
-          go test -v -race -coverprofile=coverage.out ./...
+          go test -v -race -coverprofile=coverage.out ./internal/...
           go tool cover -func=coverage.out
           go tool cover -html=coverage.out -o coverage.html
 
@@ -110,7 +110,7 @@ jobs:
 
     strategy:
       matrix:
-        go-version: ['1.25']
+        go-version: ['1.25.4']
         os: [ubuntu-latest]
 
     steps:
@@ -123,7 +123,7 @@ jobs:
         uses: actions/setup-go@v6
         with:
           go-version: ${{ matrix.go-version }}
-          cache: true
+          cache: false
 
       - name: Build application
         run: |
@@ -132,10 +132,12 @@ jobs:
           
           # Собираем основное приложение
           echo "🔨 Building main application..."
-          go build -o dist/notes -v -ldflags="-s -w" ./cmd/notes
+          go build -o dist/grpc-client -v -ldflags="-s -w" ./cmd/grpc-client
+          go build -o dist/grpc-server -v -ldflags="-s -w" ./cmd/grpc-server
+          go build -o dist/web-server -v -ldflags="-s -w" ./cmd/web-server
           
-          # Проверяем что бинарник создан
-          if [ -f dist/notes ]; then
+          # Проверяем что все бинарники созданы
+          if [ -f dist/grpc-client ] && [ -f dist/grpc-server ] && [ -f dist/web-server ]; then
             echo "✅ Build successful!"
             ls -la dist/
           else

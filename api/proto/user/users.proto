@@ -1,0 +1,61 @@
+syntax = "proto3";
+
+package users;
+
+option go_package = "./pkg/proto/user";
+
+// Message для пользователя
+message User {
+  string id = 1;
+  string username = 2;
+  string email = 3;
+  int64 created_at = 4;
+  int64 updated_at = 5;
+}
+
+// Message для запроса создания пользователя
+message CreateUserRequest {
+  string username = 1;
+  string email = 2;
+  string password = 3;
+}
+
+// Message для запроса получения сущности по ID
+message GetRequest {
+  string id = 1;
+}
+
+// Message для запроса обновления пользователя
+message UpdateUserRequest {
+  string id = 1;
+  string username = 2;
+  string email = 3;
+}
+
+// Message для ответа с пользователем
+message UserResponse {
+  User user = 1;
+}
+
+// Message для ответа с несколькими пользователями
+message UsersListResponse {
+  repeated User users = 1;
+}
+
+// Message для ответа об успешности операции
+message SuccessResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// Пустое сообщение для запросов без параметров
+message Empty {}
+
+// Сервис для работы с пользователями
+service UserService {
+  rpc CreateUser(CreateUserRequest) returns (UserResponse);
+  rpc GetUser(GetRequest) returns (UserResponse);
+  rpc UpdateUser(UpdateUserRequest) returns (UserResponse);
+  rpc DeleteUser(GetRequest) returns (SuccessResponse);
+  rpc ListUsers(Empty) returns (UsersListResponse);
+}

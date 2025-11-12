@@ -32,6 +32,9 @@ coverage.html
 bin/
 dist/
 
+# Local data for testing
+data/
+
 # OS specific
 .DS_Store
 Thumbs.db

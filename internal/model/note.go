@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/google/uuid"
+	"github.com/rd2w/go-notes/internal/util"
 )
 
 // Note представляет сущность заметки
@@ -18,7 +18,7 @@ type Note struct {
 // NewNote создает новую заметку с инициализацией временных меток
 func NewNote(title, content string) *Note {
 	note := &Note{
-		id:      generateID(),
+		id:      util.GenerateID(),
 		title:   title,
 		content: content,
 	}
@@ -54,11 +54,6 @@ func (n *Note) SetTitle(newTitle string) {
 func (n *Note) SetContent(newContent string) {
 	n.content = newContent
 	n.updateTimestamp()
-}
-
-// generateID генерирует уникальный идентификатор
-func generateID() string {
-	return uuid.New().String()
 }
 
 // JSONNote вспомогательная структура для JSON сериализации
