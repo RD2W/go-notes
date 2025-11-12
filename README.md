@@ -115,9 +115,31 @@ curl -X POST http://localhost:8080/api/users \
 
 #### Аутентификация пользователя (получение JWT-токена)
 ```bash
-curl -X POST http://localhost:8080/api/login \
+curl -X POST http://localhost:8080/api/auth/login \
   -H "Content-Type: application/json" \
- -d '{"username": "testuser", "password": "password123"}'
+  -d '{"username": "testuser", "password": "password123"}'
+```
+
+#### Выход пользователя (отзыв refresh токена)
+```bash
+curl -X POST http://localhost:8080/api/auth/logout \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer {jwt_token}" \
+  -d '{"refresh_token": "{refresh_token}"}'
+```
+
+#### Обновление токенов
+```bash
+curl -X POST http://localhost:8080/api/auth/refresh \
+  -H "Content-Type: application/json" \
+  -d '{"refresh_token": "{refresh_token}"}'
+```
+
+#### Проверка валидности токена
+```bash
+curl -X POST http://localhost:8080/api/auth/validate \
+  -H "Content-Type: application/json" \
+  -d '{"token": "{jwt_token}"}'
 ```
 
 После успешной аутентификации вы получите JWT-токен. При использовании токена в других запросах не включайте фигурные скобки `{}` - они используются только для обозначения плейсхолдера в примерах.
@@ -199,3 +221,65 @@ curl -X DELETE http://localhost:8080/api/notes/{note_id} \
 - `make test` - запуск тестов
 - `make build` - сборка приложения
 - `make help` - список всех целей
+
+## Переменные окружения
+
+Приложение поддерживает настройку через переменные окружения. Ниже приведены доступные переменные:
+
+### Общие настройки
+- `ENV` - окружение (development, production, staging) (по умолчанию: development)
+- `LOG_LEVEL` - уровень логирования (по умолчанию: info)
+
+### Сервер
+- `SERVER_PORT` - порт для HTTP сервера (по умолчанию: :8080)
+- `GRPC_PORT` - порт для gRPC сервера (по умолчанию: :50051)
+- `SERVER_READ_TIMEOUT` - таймаут чтения запроса в секундах (по умолчанию: 15)
+- `SERVER_WRITE_TIMEOUT` - таймаут записи ответа в секундах (по умолчанию: 15)
+
+### Аутентификация
+- `AUTH_ENABLE_HTTPS` - включить HTTPS (по умолчанию: false)
+
+### PostgreSQL
+- `POSTGRES_HOST` - хост PostgreSQL (по умолчанию: localhost)
+- `POSTGRES_PORT` - порт PostgreSQL (по умолчанию: 5432)
+- `POSTGRES_NAME` - имя базы данных (по умолчанию: go_notes)
+- `POSTGRES_USER` - имя пользователя базы данных (по умолчанию: postgres)
+- `POSTGRES_PASSWORD` - пароль базы данных
+- `POSTGRES_SSL_MODE` - режим SSL для PostgreSQL (по умолчанию: disable)
+- `POSTGRES_POOL_SIZE` - размер пула подключений (по умолчанию: 10)
+- `POSTGRES_PARAMETERS` - дополнительные параметры подключения
+
+### Redis
+- `REDIS_HOST` - хост Redis (по умолчанию: localhost)
+- `REDIS_PORT` - порт Redis (по умолчанию: 6379)
+- `REDIS_PASSWORD` - пароль Redis
+- `REDIS_DB` - номер базы данных Redis (по умолчанию: 0)
+- `REDIS_POOL_SIZE` - размер пула подключений (по умолчанию: 10)
+- `REDIS_URL` - альтернативный способ указания подключения
+
+### JWT
+- `JWT_SECRET_KEY` - секретный ключ для подписи JWT токенов (по умолчанию: my_secret_key)
+- `JWT_ALGORITHM` - алгоритм подписи токена (по умолчанию: HS256)
+- `BCRYPT_COST` - стоимость хеширования паролей (по умолчанию: 10)
+- `ACCESS_TOKEN_TTL` - время жизни access токена (по умолчанию: 15m)
+- `REFRESH_TOKEN_TTL` - время жизни refresh токена (по умолчанию: 168h)
+
+### Refresh токены
+- `REFRESH_SECRET_KEY` - секретный ключ для подписи Refresh токенов (по умолчанию: refresh_secret_key)
+- `REFRESH_REVOCATION_ENABLED` - включено ли отслеживание отозванных токенов (по умолчанию: true)
+- `REFRESH_REVOCATION_STORE_TYPE` - тип хранилища для отозванных токенов (по умолчанию: memory)
+
+### Репозиторий
+- `REPO_TYPE` - тип репозитория (json, ram, postgres) (по умолчанию: json)
+- `REPO_PATH` - путь к файлу/директории для хранения данных (по умолчанию: ./data)
+
+### Безопасность
+- `PASSWORD_MIN_LENGTH` - минимальная длина пароля (по умолчанию: 8)
+- `MAX_LOGIN_ATTEMPTS` - максимальное количество попыток входа (по умолчанию: 5)
+- `LOGIN_BLOCK_TIME` - время блокировки после неудачных попыток (по умолчанию: 30m)
+- `TOKEN_CLEANUP_INTERVAL` - интервал очистки токенов (по умолчанию: 1h)
+- `BCRYPT_COST_SEC` - стоимость хеширования паролей (по умолчанию: 10)
+
+### Завершение работы
+- `SHUTDOWN_TIMEOUT` - таймаут завершения работы (по умолчанию: 5s)
+- `SHUTDOWN_WAIT` - время ожидания перед завершением (по умолчанию: 3s)

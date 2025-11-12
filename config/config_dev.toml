@@ -1,0 +1,57 @@
+# Пример конфигурационного файла для Go Notes приложения
+
+env = "development"               # Окружение (development, production, staging)
+log_level = "info"                # Уровень логирования
+
+[server]
+port = ":8080"                    # Порт для HTTP сервера
+grpc_port = ":50051"              # Порт для gRPC сервера
+read_timeout = 15                 # Таймаут чтения запроса в секундах
+write_timeout = 15                # Таймаут записи ответа в секундах
+
+[auth]
+enable_https = false              # Включить HTTPS (в настоящее время не используется в приложении)
+
+[postgres]  # Настройки PostgreSQL для хранения пользователей и заметок
+host = "localhost"                # Хост PostgreSQL
+port = 5432                       # Порт PostgreSQL
+name = "go_notes"                 # Имя базы данных
+user = "postgres"                 # Имя пользователя базы данных
+password = ""                     # Пароль базы данных
+ssl_mode = "disable"              # Режим SSL для PostgreSQL
+pool_size = 10                    # Размер пула подключений
+parameters = ""                   # Дополнительные параметры подключения
+
+[redis]  # Настройки Redis для JWT токенов и кеша
+host = "localhost"                # Хост Redis
+port = 6379                       # Порт Redis
+password = ""                     # Пароль Redis (если установлен)
+db = 0                            # Номер базы данных Redis
+pool_size = 10                    # Размер пула подключений
+url = "redis://localhost:6379"    # Альтернативный способ указания подключения
+
+[jwt]
+secret_key = "my_secret_key"      # Секретный ключ для подписи JWT токенов
+algorithm = "HS256"               # Алгоритм подписи токена
+bcrypt_cost = 10                  # Стоимость хеширования паролей
+access_token_ttl = "15m"          # Время жизни access токена
+refresh_token_ttl = "168h"        # Время жизни refresh токена
+
+[refresh]
+secret_key = "refresh_secret_key" # Секретный ключ для подписи Refresh токенов
+revocation_enabled = true         # Включить отслеживание отозванных токенов
+revocation_store_type = "memory"  # Тип хранилища для отозванных токенов ("memory", "redis", "db")
+
+[repository]
+type = "json"                     # Тип репозитория ("json", "ram", "postgres")
+path = "./data"                   # Путь к файлу/директории для хранения данных (для файловых репозиториев)
+
+[security]  # Настройки безопасности
+password_min_length = 8           # Минимальная длина пароля
+max_login_attempts = 5            # Максимальное количество попыток входа
+login_block_time = "30m"          # Время блокировки после неудачных попыток
+token_cleanup_interval = "1h"     # Интервал очистки токенов
+
+[shutdown]  # Настройки завершения работы
+timeout = "5s"                    # Таймаут завершения работы
+wait = "3s"                       # Время ожидания перед завершением

@@ -2,10 +2,15 @@ package grpc
 
 import (
 	"context"
+	"fmt"
 	"testing"
+	"time"
 
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/rd2w/go-notes/internal/auth"
 	"github.com/rd2w/go-notes/internal/model"
 	"github.com/rd2w/go-notes/internal/repository"
+	authpb "github.com/rd2w/go-notes/pkg/proto/auth"
 	"github.com/rd2w/go-notes/pkg/proto/note"
 	"github.com/rd2w/go-notes/pkg/proto/user"
 	"github.com/stretchr/testify/assert"
@@ -79,17 +84,74 @@ func (m *MockRepository) DeleteByID(entityType, id string) bool {
 	return false
 }
 
+// MockTokenManager - тестовая реализация TokenManager
+type MockTokenManager struct {
+	shouldFailGenerateTokens bool
+	shouldFailValidateToken  bool
+	shouldFailRefresh        bool
+	shouldFailLogout         bool
+}
+
+func NewMockTokenManager() *MockTokenManager {
+	return &MockTokenManager{}
+}
+
+func (m *MockTokenManager) GenerateTokens(username string) (string, string, error) {
+	if m.shouldFailGenerateTokens {
+		return "", "", fmt.Errorf("ошибка генерации токенов")
+	}
+	return "access_token", "refresh_token", nil
+}
+
+func (m *MockTokenManager) RefreshTokens(refreshToken string) (string, string, error) {
+	if m.shouldFailRefresh {
+		return "", "", fmt.Errorf("ошибка обновления токенов")
+	}
+	return "new_access_token", "new_refresh_token", nil
+}
+
+func (m *MockTokenManager) ValidateAccessToken(tokenString string) (*auth.TokenClaims, error) {
+	if m.shouldFailValidateToken {
+		return nil, fmt.Errorf("токен недействителен")
+	}
+	return &auth.TokenClaims{
+		Username: "testuser",
+		TokenID:  "test_token_id",
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(15 * time.Minute)),
+		},
+	}, nil
+}
+
+func (m *MockTokenManager) Logout(refreshToken string) error {
+	if m.shouldFailLogout {
+		return fmt.Errorf("ошибка при выходе")
+	}
+	return nil
+}
+
+func (m *MockTokenManager) GetJWTExpiration() time.Duration {
+	return 15 * time.Minute
+}
+
+func (m *MockTokenManager) GetJWTExpirationSeconds() int64 {
+	return 900 // 15 минут в секундах
+}
+
 func TestNewServer(t *testing.T) {
 	mockRepo := NewMockRepository()
-	server := NewServer(mockRepo)
+	mockTokenManager := NewMockTokenManager()
+	server := NewServer(mockRepo, mockTokenManager)
 
 	assert.NotNil(t, server)
 	assert.Equal(t, mockRepo, server.repo)
+	// tokenManager не может быть напрямую проверен, так как это интерфейс
 }
 
 func TestCreateNote(t *testing.T) {
 	mockRepo := NewMockRepository()
-	server := NewServer(mockRepo)
+	mockTokenManager := NewMockTokenManager()
+	server := NewServer(mockRepo, mockTokenManager)
 
 	req := &note.CreateNoteRequest{
 		Title:   "Test Note",
@@ -113,7 +175,8 @@ func TestCreateNote(t *testing.T) {
 
 func TestGetNote(t *testing.T) {
 	mockRepo := NewMockRepository()
-	server := NewServer(mockRepo)
+	mockTokenManager := NewMockTokenManager()
+	server := NewServer(mockRepo, mockTokenManager)
 
 	// Создаем тестовую заметку
 	testNote := model.NewNote("Test Title", "Test Content")
@@ -135,7 +198,8 @@ func TestGetNote(t *testing.T) {
 
 func TestGetNoteNotFound(t *testing.T) {
 	mockRepo := NewMockRepository()
-	server := NewServer(mockRepo)
+	mockTokenManager := NewMockTokenManager()
+	server := NewServer(mockRepo, mockTokenManager)
 
 	req := &note.GetRequest{
 		Id: "nonexistent-id",
@@ -150,7 +214,8 @@ func TestGetNoteNotFound(t *testing.T) {
 
 func TestUpdateNote(t *testing.T) {
 	mockRepo := NewMockRepository()
-	server := NewServer(mockRepo)
+	mockTokenManager := NewMockTokenManager()
+	server := NewServer(mockRepo, mockTokenManager)
 
 	// Создаем тестовую заметку
 	testNote := model.NewNote("Old Title", "Old Content")
@@ -181,7 +246,8 @@ func TestUpdateNote(t *testing.T) {
 
 func TestUpdateNoteNotFound(t *testing.T) {
 	mockRepo := NewMockRepository()
-	server := NewServer(mockRepo)
+	mockTokenManager := NewMockTokenManager()
+	server := NewServer(mockRepo, mockTokenManager)
 
 	req := &note.UpdateNoteRequest{
 		Id:      "nonexistent-id",
@@ -198,7 +264,8 @@ func TestUpdateNoteNotFound(t *testing.T) {
 
 func TestDeleteNote(t *testing.T) {
 	mockRepo := NewMockRepository()
-	server := NewServer(mockRepo)
+	mockTokenManager := NewMockTokenManager()
+	server := NewServer(mockRepo, mockTokenManager)
 
 	// Создаем тестовую заметку
 	testNote := model.NewNote("Test Title", "Test Content")
@@ -222,7 +289,8 @@ func TestDeleteNote(t *testing.T) {
 
 func TestDeleteNoteNotFound(t *testing.T) {
 	mockRepo := NewMockRepository()
-	server := NewServer(mockRepo)
+	mockTokenManager := NewMockTokenManager()
+	server := NewServer(mockRepo, mockTokenManager)
 
 	req := &note.GetRequest{
 		Id: "nonexistent-id",
@@ -237,7 +305,8 @@ func TestDeleteNoteNotFound(t *testing.T) {
 
 func TestListNotes(t *testing.T) {
 	mockRepo := NewMockRepository()
-	server := NewServer(mockRepo)
+	mockTokenManager := NewMockTokenManager()
+	server := NewServer(mockRepo, mockTokenManager)
 
 	// Создаем несколько тестовых заметок
 	note1 := model.NewNote("Note 1", "Content 1")
@@ -271,7 +340,8 @@ func TestListNotes(t *testing.T) {
 
 func TestCreateUser(t *testing.T) {
 	mockRepo := NewMockRepository()
-	server := NewServer(mockRepo)
+	mockTokenManager := NewMockTokenManager()
+	server := NewServer(mockRepo, mockTokenManager)
 
 	req := &user.CreateUserRequest{
 		Username: "testuser",
@@ -296,7 +366,8 @@ func TestCreateUser(t *testing.T) {
 
 func TestGetUser(t *testing.T) {
 	mockRepo := NewMockRepository()
-	server := NewServer(mockRepo)
+	mockTokenManager := NewMockTokenManager()
+	server := NewServer(mockRepo, mockTokenManager)
 
 	// Создаем тестового пользователя
 	testUser, err := model.NewUser("testuser", "test@example.com", "password123")
@@ -321,7 +392,8 @@ func TestGetUser(t *testing.T) {
 
 func TestGetUserNotFound(t *testing.T) {
 	mockRepo := NewMockRepository()
-	server := NewServer(mockRepo)
+	mockTokenManager := NewMockTokenManager()
+	server := NewServer(mockRepo, mockTokenManager)
 
 	req := &user.GetRequest{
 		Id: "nonexistent-id",
@@ -336,7 +408,8 @@ func TestGetUserNotFound(t *testing.T) {
 
 func TestUpdateUser(t *testing.T) {
 	mockRepo := NewMockRepository()
-	server := NewServer(mockRepo)
+	mockTokenManager := NewMockTokenManager()
+	server := NewServer(mockRepo, mockTokenManager)
 
 	// Создаем тестового пользователя
 	testUser, err := model.NewUser("olduser", "old@example.com", "password123")
@@ -370,7 +443,8 @@ func TestUpdateUser(t *testing.T) {
 
 func TestUpdateUserNotFound(t *testing.T) {
 	mockRepo := NewMockRepository()
-	server := NewServer(mockRepo)
+	mockTokenManager := NewMockTokenManager()
+	server := NewServer(mockRepo, mockTokenManager)
 
 	req := &user.UpdateUserRequest{
 		Id:       "nonexistent-id",
@@ -387,7 +461,8 @@ func TestUpdateUserNotFound(t *testing.T) {
 
 func TestDeleteUser(t *testing.T) {
 	mockRepo := NewMockRepository()
-	server := NewServer(mockRepo)
+	mockTokenManager := NewMockTokenManager()
+	server := NewServer(mockRepo, mockTokenManager)
 
 	// Создаем тестового пользователя
 	testUser, err := model.NewUser("testuser", "test@example.com", "password123")
@@ -414,7 +489,8 @@ func TestDeleteUser(t *testing.T) {
 
 func TestDeleteUserNotFound(t *testing.T) {
 	mockRepo := NewMockRepository()
-	server := NewServer(mockRepo)
+	mockTokenManager := NewMockTokenManager()
+	server := NewServer(mockRepo, mockTokenManager)
 
 	req := &user.GetRequest{
 		Id: "nonexistent-id",
@@ -429,7 +505,8 @@ func TestDeleteUserNotFound(t *testing.T) {
 
 func TestListUsers(t *testing.T) {
 	mockRepo := NewMockRepository()
-	server := NewServer(mockRepo)
+	mockTokenManager := NewMockTokenManager()
+	server := NewServer(mockRepo, mockTokenManager)
 
 	// Создаем несколько тестовых пользователей
 	user1, err := model.NewUser("user1", "user1@example.com", "password1")
@@ -465,4 +542,177 @@ func TestListUsers(t *testing.T) {
 	}
 	assert.True(t, foundUser1)
 	assert.True(t, foundUser2)
+}
+
+func TestLogin(t *testing.T) {
+	mockRepo := NewMockRepository()
+	mockTokenManager := NewMockTokenManager()
+	server := NewServer(mockRepo, mockTokenManager)
+
+	// Создаем тестового пользователя
+	testUser, err := model.NewUser("testuser", "test@example.com", "password123")
+	if err != nil {
+		t.Fatalf("Failed to create test user: %v", err)
+	}
+	mockRepo.Save(testUser)
+
+	req := &authpb.LoginRequest{
+		Username: "testuser",
+		Password: "password123",
+	}
+
+	resp, err := server.Login(context.Background(), req)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, resp)
+	assert.NotEmpty(t, resp.AccessToken)
+	assert.NotEmpty(t, resp.RefreshToken)
+	assert.Equal(t, "Bearer", resp.TokenType)
+}
+
+func TestLoginNotFound(t *testing.T) {
+	mockRepo := NewMockRepository()
+	mockTokenManager := NewMockTokenManager()
+	server := NewServer(mockRepo, mockTokenManager)
+
+	req := &authpb.LoginRequest{
+		Username: "nonexistent",
+		Password: "password123",
+	}
+
+	resp, err := server.Login(context.Background(), req)
+
+	assert.Nil(t, resp)
+	assert.NotNil(t, err)
+	assert.Equal(t, codes.NotFound, status.Code(err))
+}
+
+func TestLoginInvalidPassword(t *testing.T) {
+	mockRepo := NewMockRepository()
+	mockTokenManager := NewMockTokenManager()
+	server := NewServer(mockRepo, mockTokenManager)
+
+	// Создаем тестового пользователя
+	testUser, err := model.NewUser("testuser", "test@example.com", "password123")
+	if err != nil {
+		t.Fatalf("Failed to create test user: %v", err)
+	}
+	mockRepo.Save(testUser)
+
+	req := &authpb.LoginRequest{
+		Username: "testuser",
+		Password: "invalid_password",
+	}
+
+	resp, err := server.Login(context.Background(), req)
+
+	assert.Nil(t, resp)
+	assert.NotNil(t, err)
+	assert.Equal(t, codes.Unauthenticated, status.Code(err))
+}
+
+func TestLogout(t *testing.T) {
+	mockRepo := NewMockRepository()
+	mockTokenManager := NewMockTokenManager()
+	server := NewServer(mockRepo, mockTokenManager)
+
+	req := &authpb.LogoutRequest{
+		RefreshToken: "valid_refresh_token",
+	}
+
+	resp, err := server.Logout(context.Background(), req)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, resp)
+	assert.True(t, resp.Success)
+	assert.Equal(t, "успешный выход", resp.Message)
+}
+
+func TestLogoutError(t *testing.T) {
+	mockRepo := NewMockRepository()
+	mockTokenManager := NewMockTokenManager()
+	mockTokenManager.shouldFailLogout = true
+	server := NewServer(mockRepo, mockTokenManager)
+
+	req := &authpb.LogoutRequest{
+		RefreshToken: "invalid_refresh_token",
+	}
+
+	resp, err := server.Logout(context.Background(), req)
+
+	assert.NoError(t, err) // Logout не возвращает ошибку, даже если токен невалиден
+	assert.NotNil(t, resp)
+	assert.False(t, resp.Success)
+	assert.NotEmpty(t, resp.Message)
+}
+
+func TestRefresh(t *testing.T) {
+	mockRepo := NewMockRepository()
+	mockTokenManager := NewMockTokenManager()
+	server := NewServer(mockRepo, mockTokenManager)
+
+	req := &authpb.RefreshRequest{
+		RefreshToken: "valid_refresh_token",
+	}
+
+	resp, err := server.Refresh(context.Background(), req)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, resp)
+	assert.NotEmpty(t, resp.AccessToken)
+	assert.NotEmpty(t, resp.RefreshToken)
+	assert.Equal(t, "Bearer", resp.TokenType)
+}
+
+func TestRefreshError(t *testing.T) {
+	mockRepo := NewMockRepository()
+	mockTokenManager := NewMockTokenManager()
+	mockTokenManager.shouldFailRefresh = true
+	server := NewServer(mockRepo, mockTokenManager)
+
+	req := &authpb.RefreshRequest{
+		RefreshToken: "invalid_refresh_token",
+	}
+
+	resp, err := server.Refresh(context.Background(), req)
+
+	assert.Nil(t, resp)
+	assert.NotNil(t, err)
+	assert.Equal(t, codes.Unauthenticated, status.Code(err))
+}
+
+func TestValidateToken(t *testing.T) {
+	mockRepo := NewMockRepository()
+	mockTokenManager := NewMockTokenManager()
+	server := NewServer(mockRepo, mockTokenManager)
+
+	req := &authpb.ValidateTokenRequest{
+		Token: "valid_access_token",
+	}
+
+	resp, err := server.ValidateToken(context.Background(), req)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, resp)
+	assert.True(t, resp.Valid)
+	assert.Equal(t, "testuser", resp.Username)
+	assert.Empty(t, resp.ErrorMessage) // При успешной валидации errorMessage должно быть пустым
+}
+
+func TestValidateTokenError(t *testing.T) {
+	mockRepo := NewMockRepository()
+	mockTokenManager := NewMockTokenManager()
+	mockTokenManager.shouldFailValidateToken = true
+	server := NewServer(mockRepo, mockTokenManager)
+
+	req := &authpb.ValidateTokenRequest{
+		Token: "invalid_access_token",
+	}
+
+	resp, err := server.ValidateToken(context.Background(), req)
+
+	assert.NoError(t, err) // ValidateToken не возвращает ошибку gRPC, а возвращает информацию в ответе
+	assert.NotNil(t, resp)
+	assert.False(t, resp.Valid)
+	assert.NotEmpty(t, resp.ErrorMessage)
 }
