@@ -210,99 +210,82 @@ func TestTokenManager_Logout_InvalidToken(t *testing.T) {
 	assert.Contains(t, err.Error(), "refresh токен недействителен")
 }
 
-func TestInMemoryTokenStore_SaveAndValidate(t *testing.T) {
+func TestInMemoryTokenStore_AddToBlacklistAndIsBlacklisted(t *testing.T) {
 	store := NewInMemoryTokenStore()
 
 	tokenID := "test-token-id"
-	username := "testuser"
 	expiresAt := time.Now().Add(1 * time.Hour)
 
-	// Сохраняем токен
-	err := store.Save(tokenID, username, expiresAt)
+	// Добавляем токен в черный список
+	err := store.AddToBlacklist(tokenID, expiresAt)
 	assert.NoError(t, err)
 
-	// Проверяем валидность
-	isValid, err := store.Validate(tokenID, username)
+	// Проверяем, что токен в черном списке
+	isBlacklisted, err := store.IsBlacklisted(tokenID)
 	assert.NoError(t, err)
-	assert.True(t, isValid)
+	assert.True(t, isBlacklisted)
 
-	// Проверяем с неправильным именем пользователя
-	isValid, err = store.Validate(tokenID, "otheruser")
+	// Проверяем несуществующий токен
+	isBlacklisted, err = store.IsBlacklisted("other-token-id")
 	assert.NoError(t, err)
-	assert.False(t, isValid)
+	assert.False(t, isBlacklisted)
 }
 
-func TestInMemoryTokenStore_Revoke(t *testing.T) {
+func TestInMemoryTokenStore_AddToBlacklist(t *testing.T) {
 	store := NewInMemoryTokenStore()
 
 	tokenID := "test-token-id"
-	username := "testuser"
 	expiresAt := time.Now().Add(1 * time.Hour)
 
-	// Сохраняем токен
-	err := store.Save(tokenID, username, expiresAt)
+	// Добавляем токен в черный список
+	err := store.AddToBlacklist(tokenID, expiresAt)
 	assert.NoError(t, err)
 
-	// Проверяем валидность до отзыва
-	isValid, err := store.Validate(tokenID, username)
+	// Проверяем, что токен в черном списке
+	isBlacklisted, err := store.IsBlacklisted(tokenID)
 	assert.NoError(t, err)
-	assert.True(t, isValid)
-
-	// Отзываем токен
-	err = store.Revoke(tokenID, username)
-	assert.NoError(t, err)
-
-	// Проверяем, что токен больше не валиден
-	isValid, err = store.Validate(tokenID, username)
-	assert.NoError(t, err)
-	assert.False(t, isValid)
-
-	// Проверяем, что отзыв токена другого пользователя не работает
-	err = store.Revoke(tokenID, "otheruser")
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "username does not match")
+	assert.True(t, isBlacklisted)
 }
 
 func TestInMemoryTokenStore_Cleanup(t *testing.T) {
 	store := NewInMemoryTokenStore()
 
-	// Сохраняем просроченный токен
+	// Добавляем просроченный токен в черный список
 	expiredTokenID := "expired-token-id"
-	username := "testuser"
 	expiredAt := time.Now().Add(-1 * time.Hour) // Токен просрочен
 
-	err := store.Save(expiredTokenID, username, expiredAt)
+	err := store.AddToBlacklist(expiredTokenID, expiredAt)
 	assert.NoError(t, err)
 
-	// Сохраняем валидный токен
+	// Добавляем валидный токен в черный список
 	validTokenID := "valid-token-id"
 	validAt := time.Now().Add(1 * time.Hour) // Токен валиден
 
-	err = store.Save(validTokenID, username, validAt)
+	err = store.AddToBlacklist(validTokenID, validAt)
 	assert.NoError(t, err)
 
 	// Выполняем очистку
 	err = store.Cleanup()
 	assert.NoError(t, err)
 
-	// Проверяем, что просроченный токен удален
-	isValid, err := store.Validate(expiredTokenID, username)
+	// Проверяем, что просроченный токен удален из черного списка
+	isBlacklisted, err := store.IsBlacklisted(expiredTokenID)
 	assert.NoError(t, err)
-	assert.False(t, isValid)
+	assert.False(t, isBlacklisted)
 
-	// Проверяем, что валидный токен остался
-	isValid, err = store.Validate(validTokenID, username)
+	// Проверяем, что валидный токен остался в черном списке
+	isBlacklisted, err = store.IsBlacklisted(validTokenID)
 	assert.NoError(t, err)
-	assert.True(t, isValid)
+	assert.True(t, isBlacklisted)
 }
 
-func TestInMemoryTokenStore_RevokeNonExistentToken(t *testing.T) {
+func TestInMemoryTokenStore_IsBlacklistedNonExistentToken(t *testing.T) {
 	store := NewInMemoryTokenStore()
 
-	err := store.Revoke("non-existent-token", "testuser")
+	isBlacklisted, err := store.IsBlacklisted("non-existent-token")
 
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "token not found")
+	assert.NoError(t, err)
+	assert.False(t, isBlacklisted)
 }
 
 func TestTokenManager_GetJWTExpiration(t *testing.T) {

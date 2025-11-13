@@ -22,29 +22,21 @@ type TokenClaims struct {
 
 // TokenStore интерфейс для хранения токенов
 type TokenStore interface {
-	Save(tokenID, username string, expiresAt time.Time) error
-	Validate(tokenID, username string) (bool, error)
-	Revoke(tokenID, username string) error
+	AddToBlacklist(tokenID string, expiresAt time.Time) error
+	IsBlacklisted(tokenID string) (bool, error)
 	Cleanup() error
 }
 
-// InMemoryTokenStore реализация хранилища токенов в памяти
+// InMemoryTokenStore реализация хранилища токенов в памяти (используется как blacklist)
 type InMemoryTokenStore struct {
-	tokens map[string]TokenData
-	mutex  sync.RWMutex
+	blacklistedTokens map[string]time.Time // хранит только отозванные токены
+	mutex             sync.RWMutex
 }
 
-// TokenData структура для хранения информации о токене
-type TokenData struct {
-	Username  string
-	ExpiresAt time.Time
-	Revoked   bool
-}
-
-// NewInMemoryTokenStore создает новое хранилище токенов в памяти
+// NewInMemoryTokenStore создает новое хранилище токенов в памяти (blacklist)
 func NewInMemoryTokenStore() *InMemoryTokenStore {
 	store := &InMemoryTokenStore{
-		tokens: make(map[string]TokenData),
+		blacklistedTokens: make(map[string]time.Time),
 	}
 
 	// Запускаем горутину для очистки просроченных токенов
@@ -53,74 +45,43 @@ func NewInMemoryTokenStore() *InMemoryTokenStore {
 	return store
 }
 
-// Save сохраняет токен в хранилище
-func (s *InMemoryTokenStore) Save(tokenID, username string, expiresAt time.Time) error {
+// AddToBlacklist добавляет токен в черный список
+func (s *InMemoryTokenStore) AddToBlacklist(tokenID string, expiresAt time.Time) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	s.tokens[tokenID] = TokenData{
-		Username:  username,
-		ExpiresAt: expiresAt,
-		Revoked:   false,
-	}
+	s.blacklistedTokens[tokenID] = expiresAt
 
 	return nil
 }
 
-// Validate проверяет валидность токена
-func (s *InMemoryTokenStore) Validate(tokenID, username string) (bool, error) {
+// IsBlacklisted проверяет, находится ли токен в черном списке
+func (s *InMemoryTokenStore) IsBlacklisted(tokenID string) (bool, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
-	tokenData, exists := s.tokens[tokenID]
+	expiresAt, exists := s.blacklistedTokens[tokenID]
 	if !exists {
 		return false, nil
 	}
 
-	if tokenData.Revoked {
-		return false, nil
-	}
-
-	if tokenData.Username != username {
-		return false, nil
-	}
-
-	if time.Now().After(tokenData.ExpiresAt) {
+	// Проверяем, не истек ли срок действия токена
+	if time.Now().After(expiresAt) {
 		return false, nil
 	}
 
 	return true, nil
 }
 
-// Revoke отменяет (отзывает) токен
-func (s *InMemoryTokenStore) Revoke(tokenID, username string) error {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
-	tokenData, exists := s.tokens[tokenID]
-	if !exists {
-		return errors.New("token not found")
-	}
-
-	if tokenData.Username != username {
-		return errors.New("username does not match")
-	}
-
-	tokenData.Revoked = true
-	s.tokens[tokenID] = tokenData
-
-	return nil
-}
-
-// Cleanup удаляет просроченные и отозванные токены
+// Cleanup удаляет просроченные токены из черного списка
 func (s *InMemoryTokenStore) Cleanup() error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
 	now := time.Now()
-	for tokenID, tokenData := range s.tokens {
-		if now.After(tokenData.ExpiresAt) || tokenData.Revoked {
-			delete(s.tokens, tokenID)
+	for tokenID, expiresAt := range s.blacklistedTokens {
+		if now.After(expiresAt) {
+			delete(s.blacklistedTokens, tokenID)
 		}
 	}
 
@@ -215,12 +176,6 @@ func (tm *TokenManager) GenerateTokens(username string) (string, string, error) 
 		return "", "", fmt.Errorf("ошибка подписания refresh токена: %w", err)
 	}
 
-	// Сохраняем refresh токен в хранилище (используется для отслеживания и отзыва)
-	err = tm.store.Save(tokenID, username, refreshExpiresAt)
-	if err != nil {
-		return "", "", fmt.Errorf("ошибка сохранения refresh токена: %w", err)
-	}
-
 	return token1, token2, nil
 }
 
@@ -232,9 +187,9 @@ func (tm *TokenManager) RefreshTokens(refreshToken string) (string, string, erro
 		return "", "", fmt.Errorf("refresh токен недействителен: %w", err)
 	}
 
-	// Проверяем, не был ли токен отозван
-	isValid, err := tm.store.Validate(claims.TokenID, claims.Username)
-	if err != nil || !isValid {
+	// Проверяем, не находится ли токен в черном списке
+	isBlacklisted, err := tm.store.IsBlacklisted(claims.TokenID)
+	if err != nil || isBlacklisted {
 		return "", "", errors.New("refresh токен не найден или был отозван")
 	}
 
@@ -244,10 +199,10 @@ func (tm *TokenManager) RefreshTokens(refreshToken string) (string, string, erro
 		return "", "", fmt.Errorf("ошибка генерации новых токенов: %w", err)
 	}
 
-	// Отзываем старый refresh токен
-	err = tm.store.Revoke(claims.TokenID, claims.Username)
+	// Добавляем старый refresh токен в черный список
+	err = tm.store.AddToBlacklist(claims.TokenID, time.Now().Add(tm.refreshExpiration))
 	if err != nil {
-		log.Printf("Ошибка отзыва старого refresh токена: %v", err)
+		log.Printf("Ошибка добавления токена в черный список: %v", err)
 	}
 
 	return newAccessToken, newRefreshToken, nil
@@ -264,12 +219,12 @@ func (tm *TokenManager) ValidateAccessToken(tokenString string) (*TokenClaims, e
 		return nil, fmt.Errorf("access токен недействителен: %w", err)
 	}
 
-	// Проверяем, не был ли токен отозван
-	isValid, err := tm.store.Validate(claims.TokenID, claims.Username)
+	// Проверяем, не находится ли токен в черном списке
+	isBlacklisted, err := tm.store.IsBlacklisted(claims.TokenID)
 	if err != nil {
 		return nil, fmt.Errorf("ошибка при проверке токена в хранилище: %w", err)
 	}
-	if !isValid {
+	if isBlacklisted {
 		return nil, errors.New("access токен был отозван или недействителен")
 	}
 
@@ -298,10 +253,10 @@ func (tm *TokenManager) Logout(refreshToken string) error {
 		return fmt.Errorf("refresh токен недействителен: %w", err)
 	}
 
-	// Отзываем токен (refresh токен, но также может затронуть и соответствующий access токен с тем же TokenID)
-	err = tm.store.Revoke(claims.TokenID, claims.Username)
+	// Добавляем токен в черный список
+	err = tm.store.AddToBlacklist(claims.TokenID, time.Now().Add(tm.refreshExpiration))
 	if err != nil {
-		return fmt.Errorf("ошибка отзыва токена: %w", err)
+		return fmt.Errorf("ошибка добавления токена в черный список: %w", err)
 	}
 
 	return nil
