@@ -5,15 +5,16 @@ import (
 	"net"
 
 	"github.com/rd2w/go-notes/internal/app/lifecycle"
-	"github.com/rd2w/go-notes/internal/auth"
+	tokenauth "github.com/rd2w/go-notes/internal/auth"
 	"github.com/rd2w/go-notes/internal/config"
-	grpcServer "github.com/rd2w/go-notes/internal/grpc"
-	"github.com/rd2w/go-notes/internal/repository"
-	"github.com/rd2w/go-notes/internal/repository/storage/fs"
-	"github.com/rd2w/go-notes/internal/repository/storage/ram"
+	grpcdelivery "github.com/rd2w/go-notes/internal/delivery/grpc"
+	"github.com/rd2w/go-notes/internal/repository/file"
+	authservice "github.com/rd2w/go-notes/internal/service/auth"
+	servicenote "github.com/rd2w/go-notes/internal/service/note"
+	serviceuser "github.com/rd2w/go-notes/internal/service/user"
 	authpb "github.com/rd2w/go-notes/pkg/proto/auth"
-	"github.com/rd2w/go-notes/pkg/proto/note"
-	"github.com/rd2w/go-notes/pkg/proto/user"
+	grpcnote "github.com/rd2w/go-notes/pkg/proto/note"
+	grpcuser "github.com/rd2w/go-notes/pkg/proto/user"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
@@ -27,18 +28,24 @@ type GRPCServer struct {
 
 // NewGRPCServer создает новый экземпляр gRPC-сервера
 func NewGRPCServer(cfg *config.Config) *GRPCServer {
-	// Регистрируем реализации репозитория
-	repository.Register(repository.RAM, ram.NewRamRepository)
-	repository.Register(repository.JSON, fs.NewJSONRepository)
+	// Создаем токен-менеджер
+	tokenManager := tokenauth.NewTokenManager(cfg)
 
-	// Инициализируем компоненты
-	repo := repository.NewRepositoryByType(repository.JSON)
+	// Инициализируем репозиторий
+	repo, err := file.NewFileRepository("./data/notes.json")
+	if err != nil {
+		log.Fatalf("Ошибка инициализации репозитория: %v", err)
+	}
 
-	// Создаем TokenManager
-	tokenManager := auth.NewTokenManager(cfg)
+	// Создаем бизнес-сервисы
+	noteService := servicenote.NewNoteService(repo)
+	userService := serviceuser.NewUserService(repo)
+	authService := authservice.NewAuthService(repo, tokenManager, userService)
 
-	// Создаем наш gRPC сервер
-	grpcService := grpcServer.NewServer(repo, tokenManager)
+	// Создаем gRPC-серверы для каждого сервиса
+	noteServer := grpcdelivery.NewNoteServiceServer(noteService)
+	userServer := grpcdelivery.NewUserServiceServer(userService)
+	authServer := grpcdelivery.NewAuthServiceServer(authService)
 
 	// Создаем сетевой слушатель
 	lis, err := net.Listen("tcp", cfg.Server.GRPCPort)
@@ -49,10 +56,10 @@ func NewGRPCServer(cfg *config.Config) *GRPCServer {
 	// Создаем gRPC сервер с помощью библиотеки
 	grpcServerLib := grpc.NewServer()
 
-	// Регистрируем gRPC сервис
-	note.RegisterNotesServiceServer(grpcServerLib, grpcService)
-	user.RegisterUserServiceServer(grpcServerLib, grpcService)
-	authpb.RegisterAuthServiceServer(grpcServerLib, grpcService)
+	// Регистрируем gRPC сервисы
+	grpcnote.RegisterNotesServiceServer(grpcServerLib, noteServer)
+	grpcuser.RegisterUserServiceServer(grpcServerLib, userServer)
+	authpb.RegisterAuthServiceServer(grpcServerLib, authServer)
 
 	// Добавляем reflection для инструментов gRPC
 	reflection.Register(grpcServerLib)

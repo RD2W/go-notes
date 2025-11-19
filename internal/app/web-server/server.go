@@ -1,16 +1,19 @@
 package webserver
 
 import (
+	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 
 	"github.com/rd2w/go-notes/internal/app/lifecycle"
-	"github.com/rd2w/go-notes/internal/auth"
+	tokenauth "github.com/rd2w/go-notes/internal/auth"
 	"github.com/rd2w/go-notes/internal/config"
-	"github.com/rd2w/go-notes/internal/repository"
-	"github.com/rd2w/go-notes/internal/repository/storage/fs"
-	"github.com/rd2w/go-notes/internal/repository/storage/ram"
+	httpdelivery "github.com/rd2w/go-notes/internal/delivery/http"
+	"github.com/rd2w/go-notes/internal/repository/file"
+	authservice "github.com/rd2w/go-notes/internal/service/auth"
+	"github.com/rd2w/go-notes/internal/service/note"
+	"github.com/rd2w/go-notes/internal/service/user"
 )
 
 // WebServer структура веб-сервера
@@ -31,18 +34,27 @@ func NewWebServer(cfg *config.Config) *WebServer {
 	// Создаем Gin роутер
 	r := gin.Default()
 
-	// Регистрируем реализации репозитория
-	repository.Register(repository.RAM, ram.NewRamRepository)
-	repository.Register(repository.JSON, fs.NewJSONRepository)
-
 	// Создаем токен-менеджер
-	tokenManager := auth.NewTokenManager(cfg)
+	tokenManager := tokenauth.NewTokenManager(cfg)
 
 	// Инициализируем репозиторий
-	repo := repository.NewRepositoryByType(repository.JSON)
+	repo, err := file.NewFileRepository("./data/notes.json")
+	if err != nil {
+		log.Fatalf("Ошибка инициализации репозитория: %v", err)
+	}
+
+	// Создаем бизнес-сервисы
+	noteService := note.NewNoteService(repo)
+	userService := user.NewUserService(repo)
+	authService := authservice.NewAuthService(repo, tokenManager, userService)
+
+	// Создаем HTTP-хендлеры
+	noteHandler := httpdelivery.NewNoteHandler(noteService)
+	userHandler := httpdelivery.NewUserHandler(userService)
+	authHandler := httpdelivery.NewAuthHandler(authService)
 
 	// Настраиваем маршруты
-	SetupRoutes(r, repo, tokenManager)
+	SetupRoutes(r, noteHandler, userHandler, authHandler)
 
 	// Создаем HTTP сервер
 	srv := &http.Server{

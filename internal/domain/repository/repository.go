@@ -1,7 +1,7 @@
 package repository
 
 import (
-	"github.com/rd2w/go-notes/internal/model"
+	"github.com/rd2w/go-notes/internal/domain/model"
 )
 
 // Entity интерфейс, который должны реализовывать все сущности

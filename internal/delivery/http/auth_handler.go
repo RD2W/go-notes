@@ -1,25 +1,21 @@
-package handler
+package http
 
 import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/rd2w/go-notes/internal/auth"
-	"github.com/rd2w/go-notes/internal/model"
-	"github.com/rd2w/go-notes/internal/repository"
+	"github.com/rd2w/go-notes/internal/domain/service"
 )
 
 // AuthHandler структура для обработки HTTP запросов, связанных с аутентификацией
 type AuthHandler struct {
-	repo         repository.Repository
-	tokenManager *auth.TokenManager
+	authService service.AuthService
 }
 
 // NewAuthHandler создает новый экземпляр AuthHandler
-func NewAuthHandler(repo repository.Repository, tokenManager *auth.TokenManager) *AuthHandler {
+func NewAuthHandler(authService service.AuthService) *AuthHandler {
 	return &AuthHandler{
-		repo:         repo,
-		tokenManager: tokenManager,
+		authService: authService,
 	}
 }
 
@@ -41,25 +37,9 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	// Находим пользователя по имени
-	entities := h.repo.GetAllByType("user")
-	var user *model.User
-	for _, entity := range entities {
-		u, ok := entity.(*model.User)
-		if ok && u.GetUsername() == req.Username {
-			user = u
-			break
-		}
-	}
-
-	if user == nil || !user.CheckPassword(req.Password) {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid username or password"})
-		return
-	}
-
-	accessToken, refreshToken, err := h.tokenManager.GenerateTokens(user.GetUsername())
+	accessToken, refreshToken, err := h.authService.Login(req.Username, req.Password)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate tokens"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid username or password"})
 		return
 	}
 
@@ -67,7 +47,6 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
 		TokenType:    "Bearer",
-		ExpiresIn:    int(h.tokenManager.GetJWTExpirationSeconds()), // использовать фактическое время жизни токена
 	})
 }
 
@@ -89,7 +68,7 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 		return
 	}
 
-	err := h.tokenManager.Logout(req.RefreshToken)
+	err := h.authService.Logout(req.RefreshToken)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired refresh token"})
 		return
@@ -119,21 +98,46 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 		return
 	}
 
-	newAccessToken, newRefreshToken, err := h.tokenManager.RefreshTokens(req.RefreshToken)
+	newAccessToken, newRefreshToken, err := h.authService.RefreshTokens(req.RefreshToken)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired refresh token"})
 		return
 	}
 
-	// Вычисляем время жизни токена из токен-менеджера
-	expiresIn := int(h.tokenManager.GetJWTExpirationSeconds())
-
 	c.JSON(http.StatusOK, refreshResponse{
 		AccessToken:  newAccessToken,
 		RefreshToken: newRefreshToken,
 		TokenType:    "Bearer",
-		ExpiresIn:    expiresIn,
 	})
+}
+
+// loginRequest структура для запроса аутентификации
+type loginRequest struct {
+	Username string `json:"username" binding:"required"`
+	Password string `json:"password" binding:"required"`
+}
+
+// loginResponse структура для ответа аутентификации
+type loginResponse struct {
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token"`
+	TokenType    string `json:"token_type"`
+}
+
+// logoutRequest структура для запроса выхода
+type logoutRequest struct {
+	RefreshToken string `json:"refresh_token" binding:"required"`
+}
+
+// logoutResponse структура для ответа выхода
+type logoutResponse struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+}
+
+// refreshRequest структура для запроса обновления токенов
+type refreshRequest struct {
+	RefreshToken string `json:"refresh_token" binding:"required"`
 }
 
 // ValidateToken проверяет валидность токена
@@ -154,47 +158,15 @@ func (h *AuthHandler) ValidateToken(c *gin.Context) {
 		return
 	}
 
-	claims, err := h.tokenManager.ValidateAccessToken(req.Token)
+	_, err := h.authService.ValidateToken(req.Token)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"valid": false, "error": "Invalid token"})
 		return
 	}
 
 	c.JSON(http.StatusOK, validateResponse{
-		Valid:    true,
-		Username: claims.Username,
-		Expires:  claims.ExpiresAt.Unix(),
+		Valid: true,
 	})
-}
-
-// loginRequest структура для запроса аутентификации
-type loginRequest struct {
-	Username string `json:"username" binding:"required"`
-	Password string `json:"password" binding:"required"`
-}
-
-// loginResponse структура для ответа аутентификации
-type loginResponse struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
-	TokenType    string `json:"token_type"`
-	ExpiresIn    int    `json:"expires_in"` // Время жизни токена в секундах
-}
-
-// logoutRequest структура для запроса выхода
-type logoutRequest struct {
-	RefreshToken string `json:"refresh_token" binding:"required"`
-}
-
-// logoutResponse структура для ответа выхода
-type logoutResponse struct {
-	Success bool   `json:"success"`
-	Message string `json:"message"`
-}
-
-// refreshRequest структура для запроса обновления токенов
-type refreshRequest struct {
-	RefreshToken string `json:"refresh_token" binding:"required"`
 }
 
 // refreshResponse структура для ответа обновления токенов
@@ -202,7 +174,6 @@ type refreshResponse struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
 	TokenType    string `json:"token_type"`
-	ExpiresIn    int    `json:"expires_in"` // Время жизни токена в секундах
 }
 
 // validateRequest структура для запроса проверки токена
@@ -213,6 +184,6 @@ type validateRequest struct {
 // validateResponse структура для ответа проверки токена
 type validateResponse struct {
 	Valid    bool   `json:"valid"`
-	Username string `json:"username"`
-	Expires  int64  `json:"expires"`
+	Username string `json:"username,omitempty"`
+	Expires  int64  `json:"expires,omitempty"`
 }

@@ -1,24 +1,22 @@
-package handler
+package http
 
 import (
-	"log"
 	"net/http"
-	_ "strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/rd2w/go-notes/internal/model"
-	"github.com/rd2w/go-notes/internal/repository"
+	"github.com/rd2w/go-notes/internal/domain/model"
+	"github.com/rd2w/go-notes/internal/domain/service"
 )
 
 // NoteHandler структура для обработки HTTP запросов, связанных с заметками
 type NoteHandler struct {
-	repo repository.Repository
+	noteService service.NoteService
 }
 
 // NewNoteHandler создает новый экземпляр NoteHandler
-func NewNoteHandler(repo repository.Repository) *NoteHandler {
+func NewNoteHandler(noteService service.NoteService) *NoteHandler {
 	return &NoteHandler{
-		repo: repo,
+		noteService: noteService,
 	}
 }
 
@@ -29,23 +27,22 @@ func NewNoteHandler(repo repository.Repository) *NoteHandler {
 // @Accept json
 // @Produce json
 // @Param note body createNoteRequest true "Заметка"
-// @Success 201 {object} model.Note
+// @Success 201 {object} Note
 // @Failure 400 {object} map[string]string
 // @Router /notes [post]
 func (h *NoteHandler) CreateNote(c *gin.Context) {
-	log.Printf("CreateNote handler вызван")
 	var req createNoteRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		log.Printf("Ошибка при привязке JSON: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	log.Printf("Получен запрос на создание заметки: title='%s', content='%s'", req.Title, req.Content)
-	note := model.NewNote(req.Title, req.Content)
-	log.Printf("Создана новая заметка с ID: %s", note.GetID())
-	h.repo.Save(note)
-	log.Printf("Заметка успешно сохранена в репозиторий")
+	note, err := h.noteService.CreateNote(req.Title, req.Content)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
 	c.JSON(http.StatusCreated, note)
 }
 
@@ -61,20 +58,14 @@ type createNoteRequest struct {
 // @Tags notes
 // @Produce json
 // @Param id path string true "ID заметки"
-// @Success 200 {object} model.Note
+// @Success 200 {object} Note
 // @Failure 404 {object} map[string]string
 // @Router /notes/{id} [get]
 func (h *NoteHandler) GetNote(c *gin.Context) {
 	id := c.Param("id")
-	entity := h.repo.GetByID("note", id)
-	if entity == nil {
+	note, err := h.noteService.GetNoteByID(id)
+	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Note not found"})
-		return
-	}
-
-	note, ok := entity.(*model.Note)
-	if !ok {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to cast entity to note"})
 		return
 	}
 
@@ -95,28 +86,18 @@ func (h *NoteHandler) GetNote(c *gin.Context) {
 // @Router /notes/{id} [put]
 func (h *NoteHandler) UpdateNote(c *gin.Context) {
 	id := c.Param("id")
-	entity := h.repo.GetByID("note", id)
-	if entity == nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Note not found"})
-		return
-	}
-
-	note, ok := entity.(*model.Note)
-	if !ok {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to cast entity to note"})
-		return
-	}
-
 	var updatedNote model.Note
 	if err := c.ShouldBindJSON(&updatedNote); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	note.SetTitle(updatedNote.GetTitle())
-	note.SetContent(updatedNote.GetContent())
+	note, err := h.noteService.UpdateNote(id, updatedNote.GetTitle(), updatedNote.GetContent())
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Note not found"})
+		return
+	}
 
-	h.repo.Save(note)
 	c.JSON(http.StatusOK, note)
 }
 
@@ -131,8 +112,8 @@ func (h *NoteHandler) UpdateNote(c *gin.Context) {
 // @Router /notes/{id} [delete]
 func (h *NoteHandler) DeleteNote(c *gin.Context) {
 	id := c.Param("id")
-	deleted := h.repo.DeleteByID("note", id)
-	if !deleted {
+	err := h.noteService.DeleteNote(id)
+	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Note not found"})
 		return
 	}
@@ -148,6 +129,10 @@ func (h *NoteHandler) DeleteNote(c *gin.Context) {
 // @Success 200 {array} model.Note
 // @Router /notes [get]
 func (h *NoteHandler) GetAllNotes(c *gin.Context) {
-	notes := h.repo.GetAllNotes()
+	notes, err := h.noteService.GetAllNotes()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve notes"})
+		return
+	}
 	c.JSON(http.StatusOK, notes)
 }

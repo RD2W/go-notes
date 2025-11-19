@@ -1,16 +1,23 @@
-package handler
+package http
 
 import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/rd2w/go-notes/internal/model"
-	"github.com/rd2w/go-notes/internal/repository"
+	"github.com/rd2w/go-notes/internal/domain/model"
+	"github.com/rd2w/go-notes/internal/domain/service"
 )
 
 // UserHandler структура для обработки HTTP запросов, связанных с пользователями
 type UserHandler struct {
-	repo repository.Repository
+	userService service.UserService
+}
+
+// NewUserHandler создает новый экземпляр UserHandler
+func NewUserHandler(userService service.UserService) *UserHandler {
+	return &UserHandler{
+		userService: userService,
+	}
 }
 
 // createUserRequest структура для запроса создания пользователя
@@ -18,13 +25,6 @@ type createUserRequest struct {
 	Username string `json:"username" binding:"required"`
 	Email    string `json:"email" binding:"required"`
 	Password string `json:"password" binding:"required"`
-}
-
-// NewUserHandler создает новый экземпляр UserHandler
-func NewUserHandler(repo repository.Repository) *UserHandler {
-	return &UserHandler{
-		repo: repo,
-	}
 }
 
 // CreateUser создает нового пользователя
@@ -44,13 +44,12 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 		return
 	}
 
-	user, err := model.NewUser(req.Username, req.Email, req.Password)
+	user, err := h.userService.CreateUser(req.Username, req.Email, req.Password)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user"})
 		return
 	}
 
-	h.repo.Save(user)
 	c.JSON(http.StatusCreated, user)
 }
 
@@ -65,15 +64,9 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 // @Router /users/{id} [get]
 func (h *UserHandler) GetUser(c *gin.Context) {
 	id := c.Param("id")
-	entity := h.repo.GetByID("user", id)
-	if entity == nil {
+	user, err := h.userService.GetUserByID(id)
+	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
-		return
-	}
-
-	user, ok := entity.(*model.User)
-	if !ok {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to cast entity to user"})
 		return
 	}
 
@@ -94,28 +87,18 @@ func (h *UserHandler) GetUser(c *gin.Context) {
 // @Router /users/{id} [put]
 func (h *UserHandler) UpdateUser(c *gin.Context) {
 	id := c.Param("id")
-	entity := h.repo.GetByID("user", id)
-	if entity == nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
-		return
-	}
-
-	user, ok := entity.(*model.User)
-	if !ok {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to cast entity to user"})
-		return
-	}
-
 	var updatedUser model.User
 	if err := c.ShouldBindJSON(&updatedUser); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	user.SetUsername(updatedUser.GetUsername())
-	user.SetEmail(updatedUser.GetEmail())
+	user, err := h.userService.UpdateUser(id, updatedUser.GetUsername(), updatedUser.GetEmail())
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		return
+	}
 
-	h.repo.Save(user)
 	c.JSON(http.StatusOK, user)
 }
 
@@ -130,8 +113,8 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 // @Router /users/{id} [delete]
 func (h *UserHandler) DeleteUser(c *gin.Context) {
 	id := c.Param("id")
-	deleted := h.repo.DeleteByID("user", id)
-	if !deleted {
+	err := h.userService.DeleteUser(id)
+	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
 		return
 	}
@@ -147,16 +130,10 @@ func (h *UserHandler) DeleteUser(c *gin.Context) {
 // @Success 200 {array} model.User
 // @Router /users [get]
 func (h *UserHandler) GetAllUsers(c *gin.Context) {
-	entities := h.repo.GetAllByType("user")
-	users := make([]*model.User, 0)
-
-	for _, entity := range entities {
-		user, ok := entity.(*model.User)
-		if !ok {
-			continue
-		}
-		users = append(users, user)
+	users, err := h.userService.GetAllUsers()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve users"})
+		return
 	}
-
 	c.JSON(http.StatusOK, users)
 }
