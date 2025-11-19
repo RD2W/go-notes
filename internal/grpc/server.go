@@ -4,26 +4,42 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"time"
 
+	"github.com/rd2w/go-notes/internal/auth"
 	"github.com/rd2w/go-notes/internal/model"
 	"github.com/rd2w/go-notes/internal/repository"
+	authpb "github.com/rd2w/go-notes/pkg/proto/auth"
 	"github.com/rd2w/go-notes/pkg/proto/note"
 	"github.com/rd2w/go-notes/pkg/proto/user"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
+// TokenManager интерфейс для управления токенами
+type TokenManager interface {
+	GenerateTokens(username string) (string, string, error)
+	RefreshTokens(refreshToken string) (string, string, error)
+	ValidateAccessToken(tokenString string) (*auth.TokenClaims, error)
+	Logout(refreshToken string) error
+	GetJWTExpiration() time.Duration
+	GetJWTExpirationSeconds() int64
+}
+
 // Server реализует gRPC-сервер для сервиса заметок
 type Server struct {
 	note.UnimplementedNotesServiceServer
 	user.UnimplementedUserServiceServer
-	repo repository.Repository
+	authpb.UnimplementedAuthServiceServer
+	repo         repository.Repository
+	tokenManager TokenManager
 }
 
 // NewServer создает новый экземпляр gRPC-сервера
-func NewServer(r repository.Repository) *Server {
+func NewServer(r repository.Repository, tm TokenManager) *Server {
 	return &Server{
-		repo: r,
+		repo:         r,
+		tokenManager: tm,
 	}
 }
 
@@ -234,5 +250,103 @@ func (s *Server) ListUsers(ctx context.Context, req *user.Empty) (*user.UsersLis
 
 	return &user.UsersListResponse{
 		Users: protoUsers,
+	}, nil
+}
+
+// Login реализует метод аутентификации пользователя и получения токенов
+func (s *Server) Login(ctx context.Context, req *authpb.LoginRequest) (*authpb.LoginResponse, error) {
+	// Ищем пользователя в репозитории по имени
+	entities := s.repo.GetAllByType("user")
+	var foundUser *model.User
+
+	for _, entity := range entities {
+		user, ok := entity.(*model.User)
+		if !ok {
+			continue
+		}
+
+		if user.GetUsername() == req.Username {
+			foundUser = user
+			break
+		}
+	}
+
+	if foundUser == nil {
+		return nil, status.Error(codes.NotFound, "пользователь не найден")
+	}
+
+	// Проверяем пароль
+	if !foundUser.CheckPassword(req.Password) {
+		return nil, status.Error(codes.Unauthenticated, "неверный пароль")
+	}
+
+	// Генерируем токены
+	accessToken, refreshToken, err := s.tokenManager.GenerateTokens(foundUser.GetUsername())
+	if err != nil {
+		return nil, status.Error(codes.Internal, fmt.Sprintf("ошибка генерации токенов: %v", err))
+	}
+
+	// Возвращаем токены
+	return &authpb.LoginResponse{
+		AccessToken:           accessToken,
+		RefreshToken:          refreshToken,
+		AccessTokenExpiresAt:  time.Now().Add(s.tokenManager.GetJWTExpiration()).Unix(),
+		RefreshTokenExpiresAt: time.Now().Add(time.Duration(s.tokenManager.GetJWTExpirationSeconds()) * 24 * 7 * time.Second).Unix(), // 7 дней
+		TokenType:             "Bearer",
+	}, nil
+}
+
+// Logout реализует метод выхода пользователя и отзыва токена
+func (s *Server) Logout(ctx context.Context, req *authpb.LogoutRequest) (*authpb.LogoutResponse, error) {
+	// Отзываем refresh токен
+	err := s.tokenManager.Logout(req.RefreshToken)
+	if err != nil {
+		return &authpb.LogoutResponse{
+			Success: false,
+			Message: fmt.Sprintf("ошибка при выходе: %v", err),
+		}, nil
+	}
+
+	return &authpb.LogoutResponse{
+		Success: true,
+		Message: "успешный выход",
+	}, nil
+}
+
+// Refresh реализует метод обновления токена
+func (s *Server) Refresh(ctx context.Context, req *authpb.RefreshRequest) (*authpb.RefreshResponse, error) {
+	// Обновляем токены
+	newAccessToken, newRefreshToken, err := s.tokenManager.RefreshTokens(req.RefreshToken)
+	if err != nil {
+		return nil, status.Error(codes.Unauthenticated, fmt.Sprintf("ошибка обновления токенов: %v", err))
+	}
+
+	// Возвращаем новые токены
+	return &authpb.RefreshResponse{
+		AccessToken:           newAccessToken,
+		RefreshToken:          newRefreshToken,
+		AccessTokenExpiresAt:  time.Now().Add(s.tokenManager.GetJWTExpiration()).Unix(),
+		RefreshTokenExpiresAt: time.Now().Add(time.Duration(s.tokenManager.GetJWTExpirationSeconds()) * 24 * 7 * time.Second).Unix(), // 7 дней
+		TokenType:             "Bearer",
+	}, nil
+}
+
+// ValidateToken реализует метод проверки валидности токена
+func (s *Server) ValidateToken(ctx context.Context, req *authpb.ValidateTokenRequest) (*authpb.ValidateTokenResponse, error) {
+	// Проверяем токен
+	claims, err := s.tokenManager.ValidateAccessToken(req.Token)
+	if err != nil {
+		return &authpb.ValidateTokenResponse{
+			Valid:        false,
+			ErrorMessage: fmt.Sprintf("токен недействителен: %v", err),
+		}, nil
+	}
+
+	// Возвращаем информацию о токене
+	return &authpb.ValidateTokenResponse{
+		Valid:        true,
+		Username:     claims.Username,
+		ExpiresAt:    claims.ExpiresAt.Unix(),
+		ErrorMessage: "",
 	}, nil
 }

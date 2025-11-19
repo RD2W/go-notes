@@ -35,8 +35,64 @@ definitions:
     type: object
   handler.loginResponse:
     properties:
+      access_token:
+        type: string
+      expires_in:
+        description: Время жизни токена в секундах
+        type: integer
+      refresh_token:
+        type: string
+      token_type:
+        type: string
+    type: object
+  handler.logoutRequest:
+    properties:
+      refresh_token:
+        type: string
+    required:
+    - refresh_token
+    type: object
+  handler.logoutResponse:
+    properties:
+      message:
+        type: string
+      success:
+        type: boolean
+    type: object
+  handler.refreshRequest:
+    properties:
+      refresh_token:
+        type: string
+    required:
+    - refresh_token
+    type: object
+  handler.refreshResponse:
+    properties:
+      access_token:
+        type: string
+      expires_in:
+        description: Время жизни токена в секундах
+        type: integer
+      refresh_token:
+        type: string
+      token_type:
+        type: string
+    type: object
+  handler.validateRequest:
+    properties:
       token:
         type: string
+    required:
+    - token
+    type: object
+  handler.validateResponse:
+    properties:
+      expires:
+        type: integer
+      username:
+        type: string
+      valid:
+        type: boolean
     type: object
   model.Note:
     type: object
@@ -49,11 +105,11 @@ info:
   title: Go Notes API
   version: "1.0"
 paths:
-  /api/login:
+  /api/auth/login:
     post:
       consumes:
       - application/json
-      description: Аутентифицирует пользователя и возвращает JWT токен
+      description: Аутентифицирует пользователя и возвращает access и refresh токены
       parameters:
       - description: Учетные данные
         in: body
@@ -81,6 +137,108 @@ paths:
               type: string
             type: object
       summary: Аутентификация пользователя
+      tags:
+      - auth
+  /api/auth/logout:
+    post:
+      consumes:
+      - application/json
+      description: Выходит пользователя и отзывает refresh токен
+      parameters:
+      - description: Данные для выхода
+        in: body
+        name: logoutRequest
+        required: true
+        schema:
+          $ref: '#/definitions/handler.logoutRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.logoutResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Выход пользователя
+      tags:
+      - auth
+  /api/auth/refresh:
+    post:
+      consumes:
+      - application/json
+      description: Обновляет access и refresh токены по старому refresh токену
+      parameters:
+      - description: Запрос на обновление токенов
+        in: body
+        name: refreshRequest
+        required: true
+        schema:
+          $ref: '#/definitions/handler.refreshRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.refreshResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Обновление токенов
+      tags:
+      - auth
+  /api/auth/validate:
+    post:
+      consumes:
+      - application/json
+      description: Проверяет валидность предоставленного токена
+      parameters:
+      - description: Запрос на проверку токена
+        in: body
+        name: validateRequest
+        required: true
+        schema:
+          $ref: '#/definitions/handler.validateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.validateResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Проверка токена
       tags:
       - auth
   /api/notes:

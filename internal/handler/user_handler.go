@@ -4,7 +4,6 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/rd2w/go-notes/internal/middleware"
 	"github.com/rd2w/go-notes/internal/model"
 	"github.com/rd2w/go-notes/internal/repository"
 )
@@ -12,6 +11,13 @@ import (
 // UserHandler структура для обработки HTTP запросов, связанных с пользователями
 type UserHandler struct {
 	repo repository.Repository
+}
+
+// createUserRequest структура для запроса создания пользователя
+type createUserRequest struct {
+	Username string `json:"username" binding:"required"`
+	Email    string `json:"email" binding:"required"`
+	Password string `json:"password" binding:"required"`
 }
 
 // NewUserHandler создает новый экземпляр UserHandler
@@ -46,13 +52,6 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 
 	h.repo.Save(user)
 	c.JSON(http.StatusCreated, user)
-}
-
-// createUserRequest структура для запроса создания пользователя
-type createUserRequest struct {
-	Username string `json:"username" binding:"required"`
-	Email    string `json:"email" binding:"required"`
-	Password string `json:"password" binding:"required"`
 }
 
 // GetUser возвращает пользователя по ID
@@ -160,60 +159,4 @@ func (h *UserHandler) GetAllUsers(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, users)
-}
-
-// Login обрабатывает аутентификацию пользователя
-// @Summary Аутентификация пользователя
-// @Description Аутентифицирует пользователя и возвращает JWT токен
-// @Tags auth
-// @Accept json
-// @Produce json
-// @Param credentials body loginRequest true "Учетные данные"
-// @Success 200 {object} loginResponse
-// @Failure 400 {object} map[string]string
-// @Failure 401 {object} map[string]string
-// @Router /api/login [post]
-func (h *UserHandler) Login(c *gin.Context) {
-	var req loginRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	// Находим пользователя по имени
-	entities := h.repo.GetAllByType("user")
-	var user *model.User
-	for _, entity := range entities {
-		u, ok := entity.(*model.User)
-		if ok && u.GetUsername() == req.Username {
-			user = u
-			break
-		}
-	}
-
-	if user == nil || !user.CheckPassword(req.Password) {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid username or password"})
-		return
-	}
-
-	token, err := middleware.GenerateJWT(user.GetUsername())
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
-		return
-	}
-
-	c.JSON(http.StatusOK, loginResponse{
-		Token: token,
-	})
-}
-
-// loginRequest структура для запроса аутентификации
-type loginRequest struct {
-	Username string `json:"username" binding:"required"`
-	Password string `json:"password" binding:"required"`
-}
-
-// loginResponse структура для ответа аутентификации
-type loginResponse struct {
-	Token string `json:"token"`
 }
