@@ -36,7 +36,7 @@ func NewUserHandler(repo repository.Repository) *UserHandler {
 // @Param user body createUserRequest true "Пользователь"
 // @Success 201 {object} model.User
 // @Failure 400 {object} map[string]string
-// @Router /api/users [post]
+// @Router /users [post]
 func (h *UserHandler) CreateUser(c *gin.Context) {
 	var req createUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -62,7 +62,7 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 // @Param id path string true "ID пользователя"
 // @Success 200 {object} model.User
 // @Failure 404 {object} map[string]string
-// @Router /api/users/{id} [get]
+// @Router /users/{id} [get]
 func (h *UserHandler) GetUser(c *gin.Context) {
 	id := c.Param("id")
 	entity := h.repo.GetByID("user", id)
@@ -91,7 +91,7 @@ func (h *UserHandler) GetUser(c *gin.Context) {
 // @Success 200 {object} model.User
 // @Failure 400 {object} map[string]string
 // @Failure 404 {object} map[string]string
-// @Router /api/users/{id} [put]
+// @Router /users/{id} [put]
 func (h *UserHandler) UpdateUser(c *gin.Context) {
 	id := c.Param("id")
 	entity := h.repo.GetByID("user", id)
@@ -127,7 +127,7 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 // @Param id path string true "ID пользователя"
 // @Success 204 {object} map[string]string
 // @Failure 404 {object} map[string]string
-// @Router /api/users/{id} [delete]
+// @Router /users/{id} [delete]
 func (h *UserHandler) DeleteUser(c *gin.Context) {
 	id := c.Param("id")
 	deleted := h.repo.DeleteByID("user", id)
@@ -145,7 +145,7 @@ func (h *UserHandler) DeleteUser(c *gin.Context) {
 // @Tags users
 // @Produce json
 // @Success 200 {array} model.User
-// @Router /api/users [get]
+// @Router /users [get]
 func (h *UserHandler) GetAllUsers(c *gin.Context) {
 	entities := h.repo.GetAllByType("user")
 	users := make([]*model.User, 0)

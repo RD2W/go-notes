@@ -33,7 +33,7 @@ func NewAuthHandler(repo repository.Repository, tokenManager *auth.TokenManager)
 // @Success 200 {object} loginResponse
 // @Failure 400 {object} map[string]string
 // @Failure 401 {object} map[string]string
-// @Router /api/auth/login [post]
+// @Router /auth/login [post]
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req loginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -81,7 +81,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 // @Success 200 {object} logoutResponse
 // @Failure 400 {object} map[string]string
 // @Failure 401 {object} map[string]string
-// @Router /api/auth/logout [post]
+// @Router /auth/logout [post]
 func (h *AuthHandler) Logout(c *gin.Context) {
 	var req logoutRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -111,7 +111,7 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 // @Success 200 {object} refreshResponse
 // @Failure 400 {object} map[string]string
 // @Failure 401 {object} map[string]string
-// @Router /api/auth/refresh [post]
+// @Router /auth/refresh [post]
 func (h *AuthHandler) Refresh(c *gin.Context) {
 	var req refreshRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -146,7 +146,7 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 // @Success 200 {object} validateResponse
 // @Failure 400 {object} map[string]string
 // @Failure 401 {object} map[string]string
-// @Router /api/auth/validate [post]
+// @Router /auth/validate [post]
 func (h *AuthHandler) ValidateToken(c *gin.Context) {
 	var req validateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

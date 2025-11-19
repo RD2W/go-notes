@@ -105,7 +105,7 @@ info:
   title: Go Notes API
   version: "1.0"
 paths:
-  /api/auth/login:
+  /auth/login:
     post:
       consumes:
       - application/json
@@ -139,7 +139,7 @@ paths:
       summary: Аутентификация пользователя
       tags:
       - auth
-  /api/auth/logout:
+  /auth/logout:
     post:
       consumes:
       - application/json
@@ -173,7 +173,7 @@ paths:
       summary: Выход пользователя
       tags:
       - auth
-  /api/auth/refresh:
+  /auth/refresh:
     post:
       consumes:
       - application/json
@@ -207,7 +207,7 @@ paths:
       summary: Обновление токенов
       tags:
       - auth
-  /api/auth/validate:
+  /auth/validate:
     post:
       consumes:
       - application/json
@@ -241,7 +241,7 @@ paths:
       summary: Проверка токена
       tags:
       - auth
-  /api/notes:
+  /notes:
     get:
       description: Возвращает список всех заметок
       produces:
@@ -283,7 +283,7 @@ paths:
       summary: Создать новую заметку
       tags:
       - notes
-  /api/notes/{id}:
+  /notes/{id}:
     delete:
       description: Удаляет заметку с указанным ID
       parameters:
@@ -372,7 +372,7 @@ paths:
       summary: Обновить заметку
       tags:
       - notes
-  /api/users:
+  /users:
     get:
       description: Возвращает список всех пользователей
       produces:
@@ -414,7 +414,7 @@ paths:
       summary: Создать нового пользователя
       tags:
       - users
-  /api/users/{id}:
+  /users/{id}:
     delete:
       description: Удаляет пользователя с указанным ID
       parameters:

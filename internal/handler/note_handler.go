@@ -31,7 +31,7 @@ func NewNoteHandler(repo repository.Repository) *NoteHandler {
 // @Param note body createNoteRequest true "Заметка"
 // @Success 201 {object} model.Note
 // @Failure 400 {object} map[string]string
-// @Router /api/notes [post]
+// @Router /notes [post]
 func (h *NoteHandler) CreateNote(c *gin.Context) {
 	log.Printf("CreateNote handler вызван")
 	var req createNoteRequest
@@ -63,7 +63,7 @@ type createNoteRequest struct {
 // @Param id path string true "ID заметки"
 // @Success 200 {object} model.Note
 // @Failure 404 {object} map[string]string
-// @Router /api/notes/{id} [get]
+// @Router /notes/{id} [get]
 func (h *NoteHandler) GetNote(c *gin.Context) {
 	id := c.Param("id")
 	entity := h.repo.GetByID("note", id)
@@ -92,7 +92,7 @@ func (h *NoteHandler) GetNote(c *gin.Context) {
 // @Success 200 {object} model.Note
 // @Failure 400 {object} map[string]string
 // @Failure 404 {object} map[string]string
-// @Router /api/notes/{id} [put]
+// @Router /notes/{id} [put]
 func (h *NoteHandler) UpdateNote(c *gin.Context) {
 	id := c.Param("id")
 	entity := h.repo.GetByID("note", id)
@@ -128,7 +128,7 @@ func (h *NoteHandler) UpdateNote(c *gin.Context) {
 // @Param id path string true "ID заметки"
 // @Success 204 {object} map[string]string
 // @Failure 404 {object} map[string]string
-// @Router /api/notes/{id} [delete]
+// @Router /notes/{id} [delete]
 func (h *NoteHandler) DeleteNote(c *gin.Context) {
 	id := c.Param("id")
 	deleted := h.repo.DeleteByID("note", id)
@@ -146,7 +146,7 @@ func (h *NoteHandler) DeleteNote(c *gin.Context) {
 // @Tags notes
 // @Produce json
 // @Success 200 {array} model.Note
-// @Router /api/notes [get]
+// @Router /notes [get]
 func (h *NoteHandler) GetAllNotes(c *gin.Context) {
 	notes := h.repo.GetAllNotes()
 	c.JSON(http.StatusOK, notes)

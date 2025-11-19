@@ -15,7 +15,7 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
-        "/api/auth/login": {
+        "/auth/login": {
             "post": {
                 "description": "Аутентифицирует пользователя и возвращает access и refresh токены",
                 "consumes": [
@@ -67,7 +67,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/auth/logout": {
+        "/auth/logout": {
             "post": {
                 "description": "Выходит пользователя и отзывает refresh токен",
                 "consumes": [
@@ -119,7 +119,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/auth/refresh": {
+        "/auth/refresh": {
             "post": {
                 "description": "Обновляет access и refresh токены по старому refresh токену",
                 "consumes": [
@@ -171,7 +171,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/auth/validate": {
+        "/auth/validate": {
             "post": {
                 "description": "Проверяет валидность предоставленного токена",
                 "consumes": [
@@ -223,7 +223,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/notes": {
+        "/notes": {
             "get": {
                 "description": "Возвращает список всех заметок",
                 "produces": [
@@ -287,7 +287,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/notes/{id}": {
+        "/notes/{id}": {
             "get": {
                 "description": "Возвращает заметку по указанному ID",
                 "produces": [
@@ -421,7 +421,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/users": {
+        "/users": {
             "get": {
                 "description": "Возвращает список всех пользователей",
                 "produces": [
@@ -485,7 +485,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/users/{id}": {
+        "/users/{id}": {
             "get": {
                 "description": "Возвращает пользователя по указанному ID",
                 "produces": [
