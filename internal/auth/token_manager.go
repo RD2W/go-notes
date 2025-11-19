@@ -6,11 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"sync"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/rd2w/go-notes/internal/config"
+	"github.com/rd2w/go-notes/internal/domain/repository"
+	"github.com/rd2w/go-notes/internal/repository/redis"
 )
 
 // TokenClaims структура для хранения данных в JWT токене
@@ -20,93 +21,13 @@ type TokenClaims struct {
 	jwt.RegisteredClaims
 }
 
-// TokenStore интерфейс для хранения токенов
-type TokenStore interface {
-	AddToBlacklist(tokenID string, expiresAt time.Time) error
-	IsBlacklisted(tokenID string) (bool, error)
-	Cleanup() error
-}
-
-// InMemoryTokenStore реализация хранилища токенов в памяти (используется как blacklist)
-type InMemoryTokenStore struct {
-	blacklistedTokens map[string]time.Time // хранит только отозванные токены
-	mutex             sync.RWMutex
-}
-
-// NewInMemoryTokenStore создает новое хранилище токенов в памяти (blacklist)
-func NewInMemoryTokenStore() *InMemoryTokenStore {
-	store := &InMemoryTokenStore{
-		blacklistedTokens: make(map[string]time.Time),
-	}
-
-	// Запускаем горутину для очистки просроченных токенов
-	go store.startCleanupTicker()
-
-	return store
-}
-
-// AddToBlacklist добавляет токен в черный список
-func (s *InMemoryTokenStore) AddToBlacklist(tokenID string, expiresAt time.Time) error {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
-	s.blacklistedTokens[tokenID] = expiresAt
-
-	return nil
-}
-
-// IsBlacklisted проверяет, находится ли токен в черном списке
-func (s *InMemoryTokenStore) IsBlacklisted(tokenID string) (bool, error) {
-	s.mutex.RLock()
-	defer s.mutex.RUnlock()
-
-	expiresAt, exists := s.blacklistedTokens[tokenID]
-	if !exists {
-		return false, nil
-	}
-
-	// Проверяем, не истек ли срок действия токена
-	if time.Now().After(expiresAt) {
-		return false, nil
-	}
-
-	return true, nil
-}
-
-// Cleanup удаляет просроченные токены из черного списка
-func (s *InMemoryTokenStore) Cleanup() error {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
-	now := time.Now()
-	for tokenID, expiresAt := range s.blacklistedTokens {
-		if now.After(expiresAt) {
-			delete(s.blacklistedTokens, tokenID)
-		}
-	}
-
-	return nil
-}
-
-// startCleanupTicker запускает тикер для периодической очистки просроченных токенов
-func (s *InMemoryTokenStore) startCleanupTicker() {
-	ticker := time.NewTicker(1 * time.Hour) // Очищать раз в час
-	defer ticker.Stop()
-
-	for range ticker.C {
-		if err := s.Cleanup(); err != nil {
-			log.Printf("Error cleaning up tokens: %v", err)
-		}
-	}
-}
-
 // TokenManager структура для управления токенами
 type TokenManager struct {
 	jwtSecret         []byte
 	refreshSecret     []byte
 	jwtExpiration     time.Duration
 	refreshExpiration time.Duration
-	store             TokenStore
+	store             repository.TokenRepository
 }
 
 // NewTokenManager создает новый менеджер токенов
@@ -125,12 +46,17 @@ func NewTokenManager(config *config.Config) *TokenManager {
 		}
 	}
 
+	tokenStore, err := redis.NewRedisTokenRepository(config)
+	if err != nil {
+		log.Fatalf("Ошибка создания Redis хранилища токенов: %v", err)
+	}
+
 	return &TokenManager{
 		jwtSecret:         []byte(config.JWT.SecretKey),
 		refreshSecret:     []byte(config.Refresh.SecretKey),
 		jwtExpiration:     accessTokenDuration,
 		refreshExpiration: refreshExpiration,
-		store:             NewInMemoryTokenStore(),
+		store:             tokenStore,
 	}
 }
 

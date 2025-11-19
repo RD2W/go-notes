@@ -40,18 +40,12 @@ refresh_token_ttl = "168h"        # Время жизни refresh токена
 [refresh]
 secret_key = "refresh_secret_key" # Секретный ключ для подписи Refresh токенов
 revocation_enabled = true         # Включить отслеживание отозванных токенов
-revocation_store_type = "memory"  # Тип хранилища для отозванных токенов ("memory", "redis", "db")
-
-[repository]
-type = "json"                     # Тип репозитория ("json", "ram", "postgres")
-path = "./data"                   # Путь к файлу/директории для хранения данных (для файловых репозиториев)
 
 [security]  # Настройки безопасности
 password_min_length = 8           # Минимальная длина пароля
 max_login_attempts = 5            # Максимальное количество попыток входа
 login_block_time = "30m"          # Время блокировки после неудачных попыток
-token_cleanup_interval = "1h"     # Интервал очистки токенов
 
 [shutdown]  # Настройки завершения работы
-timeout = "5s"                    # Таймаут завершения работы
+timeout = "25s"                   # Таймаут завершения работы
 wait = "3s"                       # Время ожидания перед завершением
