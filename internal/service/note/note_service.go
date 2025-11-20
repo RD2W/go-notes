@@ -10,37 +10,35 @@ import (
 
 // noteService реализация бизнес-логики для заметок
 type noteService struct {
-	repo repository.Repository
+	noteRepo repository.NoteRepository
 }
 
 // NewNoteService создает новый экземпляр сервиса заметок
-func NewNoteService(repo repository.Repository) service.NoteService {
+func NewNoteService(noteRepo repository.NoteRepository) service.NoteService {
 	return &noteService{
-		repo: repo,
+		noteRepo: noteRepo,
 	}
 }
 
 // CreateNote создает новую заметку
-func (s *noteService) CreateNote(title, content string) (*model.Note, error) {
+func (s *noteService) CreateNote(title, content, userId string) (*model.Note, error) {
 	if title == "" {
 		return nil, errors.New("заголовок не может быть пустым")
 	}
 
-	note := model.NewNote(title, content)
-	s.repo.Save(note)
+	note := model.NewNote(title, content, userId)
+	err := s.noteRepo.Create(note)
+	if err != nil {
+		return nil, err
+	}
 	return note, nil
 }
 
 // GetNoteByID возвращает заметку по ID
 func (s *noteService) GetNoteByID(id string) (*model.Note, error) {
-	entity := s.repo.GetByID("note", id)
-	if entity == nil {
+	note, err := s.noteRepo.GetByID(id)
+	if err != nil {
 		return nil, errors.New("заметка не найдена")
-	}
-
-	note, ok := entity.(*model.Note)
-	if !ok {
-		return nil, errors.New("ошибка преобразования сущности")
 	}
 
 	return note, nil
@@ -48,14 +46,9 @@ func (s *noteService) GetNoteByID(id string) (*model.Note, error) {
 
 // UpdateNote обновляет заметку
 func (s *noteService) UpdateNote(id, title, content string) (*model.Note, error) {
-	entity := s.repo.GetByID("note", id)
-	if entity == nil {
+	note, err := s.noteRepo.GetByID(id)
+	if err != nil {
 		return nil, errors.New("заметка не найдена")
-	}
-
-	note, ok := entity.(*model.Note)
-	if !ok {
-		return nil, errors.New("ошибка преобразования сущности")
 	}
 
 	if title != "" {
@@ -65,14 +58,17 @@ func (s *noteService) UpdateNote(id, title, content string) (*model.Note, error)
 		note.SetContent(content)
 	}
 
-	s.repo.Save(note)
+	err = s.noteRepo.Update(note)
+	if err != nil {
+		return nil, err
+	}
 	return note, nil
 }
 
 // DeleteNote удаляет заметку
 func (s *noteService) DeleteNote(id string) error {
-	deleted := s.repo.DeleteByID("note", id)
-	if !deleted {
+	err := s.noteRepo.DeleteByID(id)
+	if err != nil {
 		return errors.New("заметка не найдена")
 	}
 	return nil
@@ -80,6 +76,27 @@ func (s *noteService) DeleteNote(id string) error {
 
 // GetAllNotes возвращает все заметки
 func (s *noteService) GetAllNotes() ([]*model.Note, error) {
-	notes := s.repo.GetAllNotes()
+	notes, err := s.noteRepo.GetAllNotes()
+	if err != nil {
+		return nil, err
+	}
+	return notes, nil
+}
+
+// GetAllNotesByUserID возвращает все заметки пользователя
+func (s *noteService) GetAllNotesByUserID(userID string) ([]*model.Note, error) {
+	notes, err := s.noteRepo.GetAllNotesByUserID(userID)
+	if err != nil {
+		return nil, err
+	}
+	return notes, nil
+}
+
+// GetListByUserID возвращает список заметок пользователя с пагинацией
+func (s *noteService) GetListByUserID(userID string, limit, offset int) ([]*model.Note, error) {
+	notes, err := s.noteRepo.GetListByUserID(userID, limit, offset)
+	if err != nil {
+		return nil, err
+	}
 	return notes, nil
 }

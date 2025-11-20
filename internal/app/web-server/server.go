@@ -9,8 +9,9 @@ import (
 	"github.com/rd2w/go-notes/internal/app/lifecycle"
 	tokenauth "github.com/rd2w/go-notes/internal/auth"
 	"github.com/rd2w/go-notes/internal/config"
+	"github.com/rd2w/go-notes/internal/database"
 	httpdelivery "github.com/rd2w/go-notes/internal/delivery/http"
-	"github.com/rd2w/go-notes/internal/repository/file"
+	"github.com/rd2w/go-notes/internal/repository/postgres"
 	authservice "github.com/rd2w/go-notes/internal/service/auth"
 	"github.com/rd2w/go-notes/internal/service/note"
 	"github.com/rd2w/go-notes/internal/service/user"
@@ -18,8 +19,9 @@ import (
 
 // WebServer структура веб-сервера
 type WebServer struct {
-	config *config.Config
-	server *http.Server
+	config   *config.Config
+	server   *http.Server
+	dbClient *database.PostgresClient
 }
 
 // NewWebServer создает новый экземпляр веб-сервера
@@ -37,16 +39,27 @@ func NewWebServer(cfg *config.Config) *WebServer {
 	// Создаем токен-менеджер
 	tokenManager := tokenauth.NewTokenManager(cfg)
 
-	// Инициализируем репозиторий
-	repo, err := file.NewFileRepository("./data/notes.json")
+	// Создаем клиент подключения к PostgreSQL
+	postgresClient, err := database.NewPostgresClient(cfg.Postgres)
 	if err != nil {
-		log.Fatalf("Ошибка инициализации репозитория: %v", err)
+		log.Fatalf("Ошибка подключения к PostgreSQL: %v", err)
+	}
+
+	// Инициализируем репозитории
+	noteRepo, err := postgres.NewPostgresNoteRepository(postgresClient.GetPool())
+	if err != nil {
+		log.Fatalf("Ошибка при создании репозитория заметок: %v", err)
+	}
+
+	userRepo, err := postgres.NewPostgresUserRepository(postgresClient.GetPool())
+	if err != nil {
+		log.Fatalf("Ошибка при создании репозитория пользователей: %v", err)
 	}
 
 	// Создаем бизнес-сервисы
-	noteService := note.NewNoteService(repo)
-	userService := user.NewUserService(repo)
-	authService := authservice.NewAuthService(repo, tokenManager, userService)
+	noteService := note.NewNoteService(noteRepo)
+	userService := user.NewUserService(userRepo)
+	authService := authservice.NewAuthService(tokenManager, userService)
 
 	// Создаем HTTP-хендлеры
 	noteHandler := httpdelivery.NewNoteHandler(noteService)
@@ -62,14 +75,24 @@ func NewWebServer(cfg *config.Config) *WebServer {
 		Handler: r,
 	}
 
-	return &WebServer{
-		config: cfg,
-		server: srv,
+	webServer := &WebServer{
+		config:   cfg,
+		server:   srv,
+		dbClient: postgresClient,
 	}
+
+	return webServer
 }
 
 // Run запускает веб-сервер с обработкой сигналов завершения
 func (ws *WebServer) Run() error {
+	defer func() {
+		if ws.dbClient != nil {
+			ws.dbClient.Close()
+			log.Println("Соединение с базой данных закрыто")
+		}
+	}()
+
 	return lifecycle.StartHTTPServer(ws.config, ws.server)
 }
 

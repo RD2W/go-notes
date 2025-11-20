@@ -4,28 +4,25 @@ import (
 	"errors"
 
 	"github.com/rd2w/go-notes/internal/auth"
-	"github.com/rd2w/go-notes/internal/domain/repository"
 	"github.com/rd2w/go-notes/internal/domain/service"
 )
 
 // authService реализация бизнес-логики для аутентификации
 type authService struct {
-	repo         repository.Repository
 	tokenManager *auth.TokenManager
 	userService  service.UserService
 }
 
 // NewAuthService создает новый экземпляр сервиса аутентификации
-func NewAuthService(repo repository.Repository, tokenManager *auth.TokenManager, userService service.UserService) service.AuthService {
+func NewAuthService(tokenManager *auth.TokenManager, userService service.UserService) service.AuthService {
 	return &authService{
-		repo:         repo,
 		tokenManager: tokenManager,
 		userService:  userService,
 	}
 }
 
 // Login реализует аутентификацию пользователя
-func (s *authService) Login(username, password string) (accessToken, refreshToken string, err error) {
+func (s *authService) Login(username, password string) (string, string, error) {
 	user, err := s.userService.GetUserByUsername(username)
 	if err != nil {
 		return "", "", errors.New("пользователь не найден")
@@ -35,7 +32,7 @@ func (s *authService) Login(username, password string) (accessToken, refreshToke
 		return "", "", errors.New("неверный пароль")
 	}
 
-	accessToken, refreshToken, err = s.tokenManager.GenerateTokens(user.GetUsername())
+	accessToken, refreshToken, err := s.tokenManager.GenerateTokens(user.GetUsername())
 	if err != nil {
 		return "", "", errors.New("ошибка генерации токенов")
 	}
@@ -53,8 +50,8 @@ func (s *authService) Logout(refreshToken string) error {
 }
 
 // RefreshTokens обновляет токены
-func (s *authService) RefreshTokens(refreshToken string) (newAccessToken, newRefreshToken string, err error) {
-	newAccessToken, newRefreshToken, err = s.tokenManager.RefreshTokens(refreshToken)
+func (s *authService) RefreshTokens(refreshToken string) (string, string, error) {
+	newAccessToken, newRefreshToken, err := s.tokenManager.RefreshTokens(refreshToken)
 	if err != nil {
 		return "", "", errors.New("ошибка обновления токенов")
 	}
@@ -62,7 +59,7 @@ func (s *authService) RefreshTokens(refreshToken string) (newAccessToken, newRef
 }
 
 // ValidateToken проверяет валидность токена
-func (s *authService) ValidateToken(token string) (username string, err error) {
+func (s *authService) ValidateToken(token string) (string, error) {
 	claims, err := s.tokenManager.ValidateAccessToken(token)
 	if err != nil {
 		return "", errors.New("токен недействителен")

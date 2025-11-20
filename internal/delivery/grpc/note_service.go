@@ -23,7 +23,7 @@ func NewNoteServiceServer(noteService service.NoteService) *NoteServiceServer {
 
 // CreateNote создает новую заметку
 func (s *NoteServiceServer) CreateNote(ctx context.Context, req *notePb.CreateNoteRequest) (*notePb.NoteResponse, error) {
-	note, err := s.noteService.CreateNote(req.Title, req.Content)
+	note, err := s.noteService.CreateNote(req.GetTitle(), req.GetContent(), req.GetUserId())
 	if err != nil {
 		return nil, err
 	}
@@ -33,6 +33,7 @@ func (s *NoteServiceServer) CreateNote(ctx context.Context, req *notePb.CreateNo
 			Id:        note.GetID(),
 			Title:     note.GetTitle(),
 			Content:   note.GetContent(),
+			UserId:    note.GetUserID(),
 			CreatedAt: note.GetCreatedAt().Unix(),
 			UpdatedAt: note.GetUpdatedAt().Unix(),
 		},
@@ -52,6 +53,7 @@ func (s *NoteServiceServer) GetNote(ctx context.Context, req *notePb.GetRequest)
 			Id:        note.GetID(),
 			Title:     note.GetTitle(),
 			Content:   note.GetContent(),
+			UserId:    note.GetUserID(),
 			CreatedAt: note.GetCreatedAt().Unix(),
 			UpdatedAt: note.GetUpdatedAt().Unix(),
 		},
@@ -71,6 +73,7 @@ func (s *NoteServiceServer) UpdateNote(ctx context.Context, req *notePb.UpdateNo
 			Id:        note.GetID(),
 			Title:     note.GetTitle(),
 			Content:   note.GetContent(),
+			UserId:    note.GetUserID(),
 			CreatedAt: note.GetCreatedAt().Unix(),
 			UpdatedAt: note.GetUpdatedAt().Unix(),
 		},
@@ -105,6 +108,7 @@ func (s *NoteServiceServer) ListNotes(ctx context.Context, req *notePb.Empty) (*
 			Id:        note.GetID(),
 			Title:     note.GetTitle(),
 			Content:   note.GetContent(),
+			UserId:    note.GetUserID(),
 			CreatedAt: note.GetCreatedAt().Unix(),
 			UpdatedAt: note.GetUpdatedAt().Unix(),
 		}

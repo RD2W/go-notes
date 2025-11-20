@@ -72,12 +72,6 @@ func (u *User) GetPassword() string {
 	return u.password
 }
 
-// CheckPassword проверяет, соответствует ли переданный пароль хешу
-func (u *User) CheckPassword(password string) bool {
-	err := bcrypt.CompareHashAndPassword([]byte(u.password), []byte(password))
-	return err == nil
-}
-
 // SetUsername устанавливает новое имя пользователя и обновляет временную метку
 func (u *User) SetUsername(newUsername string) {
 	u.username = newUsername
@@ -99,6 +93,33 @@ func (u *User) SetPassword(newPassword string) error {
 	u.password = string(hashedPassword)
 	u.updateTimestamp()
 	return nil
+}
+
+// SetPasswordHash устанавливает хеш пароля напрямую (для загрузки из базы данных)
+func (u *User) SetPasswordHash(passwordHash string) {
+	u.password = passwordHash
+	u.updateTimestamp()
+}
+
+// CheckPassword проверяет, соответствует ли переданный пароль хешу
+func (u *User) CheckPassword(password string) bool {
+	err := bcrypt.CompareHashAndPassword([]byte(u.password), []byte(password))
+	return err == nil
+}
+
+// SetID устанавливает идентификатор пользователя
+func (u *User) SetID(id string) {
+	u.id = id
+}
+
+// SetCreatedAt устанавливает время создания
+func (u *User) SetCreatedAt(createdAt time.Time) {
+	u.createdAt = createdAt
+}
+
+// SetUpdatedAt устанавливает время обновления
+func (u *User) SetUpdatedAt(updatedAt time.Time) {
+	u.updatedAt = updatedAt
 }
 
 // JSONUser вспомогательная структура для JSON сериализации

@@ -37,7 +37,20 @@ func (h *NoteHandler) CreateNote(c *gin.Context) {
 		return
 	}
 
-	note, err := h.noteService.CreateNote(req.Title, req.Content)
+	// Получаем ID пользователя из контекста (предполагается, что он был добавлен middleware аутентификации)
+	userId, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "пользователь не аутентифицирован"})
+		return
+	}
+
+	userIdStr, ok := userId.(string)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "ошибка получения ID пользователя"})
+		return
+	}
+
+	note, err := h.noteService.CreateNote(req.Title, req.Content, userIdStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return

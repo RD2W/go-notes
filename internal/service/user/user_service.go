@@ -10,13 +10,13 @@ import (
 
 // userService реализация бизнес-логики для пользователей
 type userService struct {
-	repo repository.Repository
+	userRepo repository.UserRepository
 }
 
 // NewUserService создает новый экземпляр сервиса пользователей
-func NewUserService(repo repository.Repository) service.UserService {
+func NewUserService(userRepo repository.UserRepository) service.UserService {
 	return &userService{
-		repo: repo,
+		userRepo: userRepo,
 	}
 }
 
@@ -31,20 +31,18 @@ func (s *userService) CreateUser(username, email, password string) (*model.User,
 		return nil, err
 	}
 
-	s.repo.Save(user)
+	err = s.userRepo.Create(user)
+	if err != nil {
+		return nil, err
+	}
 	return user, nil
 }
 
 // GetUserByID возвращает пользователя по ID
 func (s *userService) GetUserByID(id string) (*model.User, error) {
-	entity := s.repo.GetByID("user", id)
-	if entity == nil {
+	user, err := s.userRepo.GetByID(id)
+	if err != nil {
 		return nil, errors.New("пользователь не найден")
-	}
-
-	user, ok := entity.(*model.User)
-	if !ok {
-		return nil, errors.New("ошибка преобразования сущности")
 	}
 
 	return user, nil
@@ -52,14 +50,9 @@ func (s *userService) GetUserByID(id string) (*model.User, error) {
 
 // UpdateUser обновляет пользователя
 func (s *userService) UpdateUser(id, username, email string) (*model.User, error) {
-	entity := s.repo.GetByID("user", id)
-	if entity == nil {
+	user, err := s.userRepo.GetByID(id)
+	if err != nil {
 		return nil, errors.New("пользователь не найден")
-	}
-
-	user, ok := entity.(*model.User)
-	if !ok {
-		return nil, errors.New("ошибка преобразования сущности")
 	}
 
 	if username != "" {
@@ -69,14 +62,17 @@ func (s *userService) UpdateUser(id, username, email string) (*model.User, error
 		user.SetEmail(email)
 	}
 
-	s.repo.Save(user)
+	err = s.userRepo.Update(user)
+	if err != nil {
+		return nil, err
+	}
 	return user, nil
 }
 
 // DeleteUser удаляет пользователя
 func (s *userService) DeleteUser(id string) error {
-	deleted := s.repo.DeleteByID("user", id)
-	if !deleted {
+	err := s.userRepo.DeleteByID(id)
+	if err != nil {
 		return errors.New("пользователь не найден")
 	}
 	return nil
@@ -84,15 +80,9 @@ func (s *userService) DeleteUser(id string) error {
 
 // GetAllUsers возвращает всех пользователей
 func (s *userService) GetAllUsers() ([]*model.User, error) {
-	entities := s.repo.GetAllByType("user")
-	users := make([]*model.User, 0)
-
-	for _, entity := range entities {
-		user, ok := entity.(*model.User)
-		if !ok {
-			continue
-		}
-		users = append(users, user)
+	users, err := s.userRepo.GetAllUsers()
+	if err != nil {
+		return nil, err
 	}
 
 	return users, nil
@@ -100,13 +90,20 @@ func (s *userService) GetAllUsers() ([]*model.User, error) {
 
 // GetUserByUsername возвращает пользователя по имени
 func (s *userService) GetUserByUsername(username string) (*model.User, error) {
-	entities := s.repo.GetAllByType("user")
-	for _, entity := range entities {
-		user, ok := entity.(*model.User)
-		if ok && user.GetUsername() == username {
-			return user, nil
-		}
+	user, err := s.userRepo.GetUserByUsername(username)
+	if err != nil {
+		return nil, errors.New("пользователь не найден")
 	}
 
-	return nil, errors.New("пользователь не найден")
+	return user, nil
+}
+
+// GetUserByEmail возвращает пользователя по email
+func (s *userService) GetUserByEmail(email string) (*model.User, error) {
+	user, err := s.userRepo.GetUserByEmail(email)
+	if err != nil {
+		return nil, errors.New("пользователь не найден")
+	}
+
+	return user, nil
 }

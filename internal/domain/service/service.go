@@ -6,11 +6,13 @@ import (
 
 // NoteService интерфейс для бизнес-логики заметок
 type NoteService interface {
-	CreateNote(title, content string) (*model.Note, error)
+	CreateNote(title, content, userId string) (*model.Note, error)
 	GetNoteByID(id string) (*model.Note, error)
 	UpdateNote(id, title, content string) (*model.Note, error)
 	DeleteNote(id string) error
 	GetAllNotes() ([]*model.Note, error)
+	GetAllNotesByUserID(userID string) ([]*model.Note, error)
+	GetListByUserID(userID string, limit, offset int) ([]*model.Note, error)
 }
 
 // UserService интерфейс для бизнес-логики пользователей
@@ -21,6 +23,7 @@ type UserService interface {
 	DeleteUser(id string) error
 	GetAllUsers() ([]*model.User, error)
 	GetUserByUsername(username string) (*model.User, error)
+	GetUserByEmail(email string) (*model.User, error)
 }
 
 // AuthService интерфейс для бизнес-логики аутентификации

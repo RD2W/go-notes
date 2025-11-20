@@ -7,8 +7,9 @@ import (
 	"github.com/rd2w/go-notes/internal/app/lifecycle"
 	tokenauth "github.com/rd2w/go-notes/internal/auth"
 	"github.com/rd2w/go-notes/internal/config"
+	"github.com/rd2w/go-notes/internal/database"
 	grpcdelivery "github.com/rd2w/go-notes/internal/delivery/grpc"
-	"github.com/rd2w/go-notes/internal/repository/file"
+	"github.com/rd2w/go-notes/internal/repository/postgres"
 	authservice "github.com/rd2w/go-notes/internal/service/auth"
 	servicenote "github.com/rd2w/go-notes/internal/service/note"
 	serviceuser "github.com/rd2w/go-notes/internal/service/user"
@@ -24,6 +25,7 @@ type GRPCServer struct {
 	config     *config.Config
 	grpcServer *grpc.Server
 	listener   net.Listener
+	dbClient   *database.PostgresClient
 }
 
 // NewGRPCServer создает новый экземпляр gRPC-сервера
@@ -31,21 +33,11 @@ func NewGRPCServer(cfg *config.Config) *GRPCServer {
 	// Создаем токен-менеджер
 	tokenManager := tokenauth.NewTokenManager(cfg)
 
-	// Инициализируем репозиторий
-	repo, err := file.NewFileRepository("./data/notes.json")
+	// Создаем клиент подключения к PostgreSQL
+	postgresClient, err := database.NewPostgresClient(cfg.Postgres)
 	if err != nil {
-		log.Fatalf("Ошибка инициализации репозитория: %v", err)
+		log.Fatalf("Ошибка подключения к PostgreSQL: %v", err)
 	}
-
-	// Создаем бизнес-сервисы
-	noteService := servicenote.NewNoteService(repo)
-	userService := serviceuser.NewUserService(repo)
-	authService := authservice.NewAuthService(repo, tokenManager, userService)
-
-	// Создаем gRPC-серверы для каждого сервиса
-	noteServer := grpcdelivery.NewNoteServiceServer(noteService)
-	userServer := grpcdelivery.NewUserServiceServer(userService)
-	authServer := grpcdelivery.NewAuthServiceServer(authService)
 
 	// Создаем сетевой слушатель
 	lis, err := net.Listen("tcp", cfg.Server.GRPCPort)
@@ -56,6 +48,27 @@ func NewGRPCServer(cfg *config.Config) *GRPCServer {
 	// Создаем gRPC сервер с помощью библиотеки
 	grpcServerLib := grpc.NewServer()
 
+	// Инициализируем репозитории
+	noteRepo, err := postgres.NewPostgresNoteRepository(postgresClient.GetPool())
+	if err != nil {
+		log.Fatalf("Ошибка при создании репозитория заметок: %v", err)
+	}
+
+	userRepo, err := postgres.NewPostgresUserRepository(postgresClient.GetPool())
+	if err != nil {
+		log.Fatalf("Ошибка при создании репозитория пользователей: %v", err)
+	}
+
+	// Создаем бизнес-сервисы
+	noteService := servicenote.NewNoteService(noteRepo)
+	userService := serviceuser.NewUserService(userRepo)
+	authService := authservice.NewAuthService(tokenManager, userService)
+
+	// Создаем gRPC-серверы для каждого сервиса
+	noteServer := grpcdelivery.NewNoteServiceServer(noteService)
+	userServer := grpcdelivery.NewUserServiceServer(userService)
+	authServer := grpcdelivery.NewAuthServiceServer(authService)
+
 	// Регистрируем gRPC сервисы
 	grpcnote.RegisterNotesServiceServer(grpcServerLib, noteServer)
 	grpcuser.RegisterUserServiceServer(grpcServerLib, userServer)
@@ -64,15 +77,26 @@ func NewGRPCServer(cfg *config.Config) *GRPCServer {
 	// Добавляем reflection для инструментов gRPC
 	reflection.Register(grpcServerLib)
 
-	return &GRPCServer{
+	// Создаем экземпляр сервера
+	grpcServer := &GRPCServer{
 		config:     cfg,
 		grpcServer: grpcServerLib,
 		listener:   lis,
+		dbClient:   postgresClient,
 	}
+
+	return grpcServer
 }
 
 // Run запускает gRPC-сервер с обработкой сигналов завершения
 func (gs *GRPCServer) Run() error {
+	defer func() {
+		if gs.dbClient != nil {
+			gs.dbClient.Close()
+			log.Println("Соединение с базой данных закрыто")
+		}
+	}()
+
 	return lifecycle.StartGRPCServer(gs.config, gs.grpcServer, gs.listener)
 }
 
