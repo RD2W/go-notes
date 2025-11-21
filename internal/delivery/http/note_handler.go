@@ -27,8 +27,9 @@ func NewNoteHandler(noteService service.NoteService) *NoteHandler {
 // @Accept json
 // @Produce json
 // @Param note body createNoteRequest true "Заметка"
-// @Success 201 {object} Note
+// @Success 201 {object} model.Note
 // @Failure 400 {object} map[string]string
+// @Security BearerAuth
 // @Router /notes [post]
 func (h *NoteHandler) CreateNote(c *gin.Context) {
 	var req createNoteRequest
@@ -71,8 +72,9 @@ type createNoteRequest struct {
 // @Tags notes
 // @Produce json
 // @Param id path string true "ID заметки"
-// @Success 200 {object} Note
+// @Success 200 {object} model.Note
 // @Failure 404 {object} map[string]string
+// @Security BearerAuth
 // @Router /notes/{id} [get]
 func (h *NoteHandler) GetNote(c *gin.Context) {
 	id := c.Param("id")
@@ -96,6 +98,7 @@ func (h *NoteHandler) GetNote(c *gin.Context) {
 // @Success 200 {object} model.Note
 // @Failure 400 {object} map[string]string
 // @Failure 404 {object} map[string]string
+// @Security BearerAuth
 // @Router /notes/{id} [put]
 func (h *NoteHandler) UpdateNote(c *gin.Context) {
 	id := c.Param("id")
@@ -122,6 +125,7 @@ func (h *NoteHandler) UpdateNote(c *gin.Context) {
 // @Param id path string true "ID заметки"
 // @Success 204 {object} map[string]string
 // @Failure 404 {object} map[string]string
+// @Security BearerAuth
 // @Router /notes/{id} [delete]
 func (h *NoteHandler) DeleteNote(c *gin.Context) {
 	id := c.Param("id")
@@ -140,6 +144,7 @@ func (h *NoteHandler) DeleteNote(c *gin.Context) {
 // @Tags notes
 // @Produce json
 // @Success 200 {array} model.Note
+// @Security BearerAuth
 // @Router /notes [get]
 func (h *NoteHandler) GetAllNotes(c *gin.Context) {
 	notes, err := h.noteService.GetAllNotes()

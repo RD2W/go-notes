@@ -29,7 +29,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/handler.loginRequest"
+                            "$ref": "#/definitions/http.loginRequest"
                         }
                     }
                 ],
@@ -37,7 +37,7 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.loginResponse"
+                            "$ref": "#/definitions/http.loginResponse"
                         }
                     },
                     "400": {
@@ -81,7 +81,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/handler.logoutRequest"
+                            "$ref": "#/definitions/http.logoutRequest"
                         }
                     }
                 ],
@@ -89,7 +89,7 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.logoutResponse"
+                            "$ref": "#/definitions/http.logoutResponse"
                         }
                     },
                     "400": {
@@ -133,7 +133,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/handler.refreshRequest"
+                            "$ref": "#/definitions/http.refreshRequest"
                         }
                     }
                 ],
@@ -141,7 +141,7 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.refreshResponse"
+                            "$ref": "#/definitions/http.refreshResponse"
                         }
                     },
                     "400": {
@@ -185,7 +185,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/handler.validateRequest"
+                            "$ref": "#/definitions/http.validateRequest"
                         }
                     }
                 ],
@@ -193,7 +193,7 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.validateResponse"
+                            "$ref": "#/definitions/http.validateResponse"
                         }
                     },
                     "400": {
@@ -219,6 +219,11 @@
         },
         "/notes": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Возвращает список всех заметок",
                 "produces": [
                     "application/json"
@@ -240,6 +245,11 @@
                 }
             },
             "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Создает новую заметку с указанными заголовком и содержимым",
                 "consumes": [
                     "application/json"
@@ -258,7 +268,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/handler.createNoteRequest"
+                            "$ref": "#/definitions/http.createNoteRequest"
                         }
                     }
                 ],
@@ -283,6 +293,11 @@
         },
         "/notes/{id}": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Возвращает заметку по указанному ID",
                 "produces": [
                     "application/json"
@@ -319,6 +334,11 @@
                 }
             },
             "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Обновляет заметку с указанным ID",
                 "consumes": [
                     "application/json"
@@ -376,6 +396,11 @@
                 }
             },
             "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Удаляет заметку с указанным ID",
                 "produces": [
                     "application/json"
@@ -456,7 +481,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/handler.createUserRequest"
+                            "$ref": "#/definitions/http.createUserRequest"
                         }
                     }
                 ],
@@ -481,6 +506,11 @@
         },
         "/users/{id}": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Возвращает пользователя по указанному ID",
                 "produces": [
                     "application/json"
@@ -517,6 +547,11 @@
                 }
             },
             "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Обновляет пользователя с указанным ID",
                 "consumes": [
                     "application/json"
@@ -574,6 +609,11 @@
                 }
             },
             "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Удаляет пользователя с указанным ID",
                 "produces": [
                     "application/json"
@@ -615,7 +655,7 @@
         }
     },
     "definitions": {
-        "handler.createNoteRequest": {
+        "http.createNoteRequest": {
             "type": "object",
             "required": [
                 "content",
@@ -630,7 +670,7 @@
                 }
             }
         },
-        "handler.createUserRequest": {
+        "http.createUserRequest": {
             "type": "object",
             "required": [
                 "email",
@@ -649,7 +689,7 @@
                 }
             }
         },
-        "handler.loginRequest": {
+        "http.loginRequest": {
             "type": "object",
             "required": [
                 "password",
@@ -664,15 +704,11 @@
                 }
             }
         },
-        "handler.loginResponse": {
+        "http.loginResponse": {
             "type": "object",
             "properties": {
                 "access_token": {
                     "type": "string"
-                },
-                "expires_in": {
-                    "description": "Время жизни токена в секундах",
-                    "type": "integer"
                 },
                 "refresh_token": {
                     "type": "string"
@@ -682,7 +718,7 @@
                 }
             }
         },
-        "handler.logoutRequest": {
+        "http.logoutRequest": {
             "type": "object",
             "required": [
                 "refresh_token"
@@ -693,7 +729,7 @@
                 }
             }
         },
-        "handler.logoutResponse": {
+        "http.logoutResponse": {
             "type": "object",
             "properties": {
                 "message": {
@@ -704,7 +740,7 @@
                 }
             }
         },
-        "handler.refreshRequest": {
+        "http.refreshRequest": {
             "type": "object",
             "required": [
                 "refresh_token"
@@ -715,15 +751,11 @@
                 }
             }
         },
-        "handler.refreshResponse": {
+        "http.refreshResponse": {
             "type": "object",
             "properties": {
                 "access_token": {
                     "type": "string"
-                },
-                "expires_in": {
-                    "description": "Время жизни токена в секундах",
-                    "type": "integer"
                 },
                 "refresh_token": {
                     "type": "string"
@@ -733,7 +765,7 @@
                 }
             }
         },
-        "handler.validateRequest": {
+        "http.validateRequest": {
             "type": "object",
             "required": [
                 "token"
@@ -744,7 +776,7 @@
                 }
             }
         },
-        "handler.validateResponse": {
+        "http.validateResponse": {
             "type": "object",
             "properties": {
                 "expires": {

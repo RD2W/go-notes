@@ -35,7 +35,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/handler.loginRequest"
+                            "$ref": "#/definitions/http.loginRequest"
                         }
                     }
                 ],
@@ -43,7 +43,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.loginResponse"
+                            "$ref": "#/definitions/http.loginResponse"
                         }
                     },
                     "400": {
@@ -87,7 +87,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/handler.logoutRequest"
+                            "$ref": "#/definitions/http.logoutRequest"
                         }
                     }
                 ],
@@ -95,7 +95,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.logoutResponse"
+                            "$ref": "#/definitions/http.logoutResponse"
                         }
                     },
                     "400": {
@@ -139,7 +139,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/handler.refreshRequest"
+                            "$ref": "#/definitions/http.refreshRequest"
                         }
                     }
                 ],
@@ -147,7 +147,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.refreshResponse"
+                            "$ref": "#/definitions/http.refreshResponse"
                         }
                     },
                     "400": {
@@ -191,7 +191,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/handler.validateRequest"
+                            "$ref": "#/definitions/http.validateRequest"
                         }
                     }
                 ],
@@ -199,7 +199,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.validateResponse"
+                            "$ref": "#/definitions/http.validateResponse"
                         }
                     },
                     "400": {
@@ -225,6 +225,11 @@ const docTemplate = `{
         },
         "/notes": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Возвращает список всех заметок",
                 "produces": [
                     "application/json"
@@ -246,6 +251,11 @@ const docTemplate = `{
                 }
             },
             "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Создает новую заметку с указанными заголовком и содержимым",
                 "consumes": [
                     "application/json"
@@ -264,7 +274,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/handler.createNoteRequest"
+                            "$ref": "#/definitions/http.createNoteRequest"
                         }
                     }
                 ],
@@ -289,6 +299,11 @@ const docTemplate = `{
         },
         "/notes/{id}": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Возвращает заметку по указанному ID",
                 "produces": [
                     "application/json"
@@ -325,6 +340,11 @@ const docTemplate = `{
                 }
             },
             "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Обновляет заметку с указанным ID",
                 "consumes": [
                     "application/json"
@@ -382,6 +402,11 @@ const docTemplate = `{
                 }
             },
             "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Удаляет заметку с указанным ID",
                 "produces": [
                     "application/json"
@@ -462,7 +487,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/handler.createUserRequest"
+                            "$ref": "#/definitions/http.createUserRequest"
                         }
                     }
                 ],
@@ -487,6 +512,11 @@ const docTemplate = `{
         },
         "/users/{id}": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Возвращает пользователя по указанному ID",
                 "produces": [
                     "application/json"
@@ -523,6 +553,11 @@ const docTemplate = `{
                 }
             },
             "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Обновляет пользователя с указанным ID",
                 "consumes": [
                     "application/json"
@@ -580,6 +615,11 @@ const docTemplate = `{
                 }
             },
             "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Удаляет пользователя с указанным ID",
                 "produces": [
                     "application/json"
@@ -621,7 +661,7 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "handler.createNoteRequest": {
+        "http.createNoteRequest": {
             "type": "object",
             "required": [
                 "content",
@@ -636,7 +676,7 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.createUserRequest": {
+        "http.createUserRequest": {
             "type": "object",
             "required": [
                 "email",
@@ -655,7 +695,7 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.loginRequest": {
+        "http.loginRequest": {
             "type": "object",
             "required": [
                 "password",
@@ -670,15 +710,11 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.loginResponse": {
+        "http.loginResponse": {
             "type": "object",
             "properties": {
                 "access_token": {
                     "type": "string"
-                },
-                "expires_in": {
-                    "description": "Время жизни токена в секундах",
-                    "type": "integer"
                 },
                 "refresh_token": {
                     "type": "string"
@@ -688,7 +724,7 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.logoutRequest": {
+        "http.logoutRequest": {
             "type": "object",
             "required": [
                 "refresh_token"
@@ -699,7 +735,7 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.logoutResponse": {
+        "http.logoutResponse": {
             "type": "object",
             "properties": {
                 "message": {
@@ -710,7 +746,7 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.refreshRequest": {
+        "http.refreshRequest": {
             "type": "object",
             "required": [
                 "refresh_token"
@@ -721,15 +757,11 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.refreshResponse": {
+        "http.refreshResponse": {
             "type": "object",
             "properties": {
                 "access_token": {
                     "type": "string"
-                },
-                "expires_in": {
-                    "description": "Время жизни токена в секундах",
-                    "type": "integer"
                 },
                 "refresh_token": {
                     "type": "string"
@@ -739,7 +771,7 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.validateRequest": {
+        "http.validateRequest": {
             "type": "object",
             "required": [
                 "token"
@@ -750,7 +782,7 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.validateResponse": {
+        "http.validateResponse": {
             "type": "object",
             "properties": {
                 "expires": {

@@ -1,6 +1,6 @@
 basePath: /api
 definitions:
-  handler.createNoteRequest:
+  http.createNoteRequest:
     properties:
       content:
         type: string
@@ -10,7 +10,7 @@ definitions:
     - content
     - title
     type: object
-  handler.createUserRequest:
+  http.createUserRequest:
     properties:
       email:
         type: string
@@ -23,7 +23,7 @@ definitions:
     - password
     - username
     type: object
-  handler.loginRequest:
+  http.loginRequest:
     properties:
       password:
         type: string
@@ -33,59 +33,53 @@ definitions:
     - password
     - username
     type: object
-  handler.loginResponse:
+  http.loginResponse:
     properties:
       access_token:
         type: string
-      expires_in:
-        description: Время жизни токена в секундах
-        type: integer
       refresh_token:
         type: string
       token_type:
         type: string
     type: object
-  handler.logoutRequest:
+  http.logoutRequest:
     properties:
       refresh_token:
         type: string
     required:
     - refresh_token
     type: object
-  handler.logoutResponse:
+  http.logoutResponse:
     properties:
       message:
         type: string
       success:
         type: boolean
     type: object
-  handler.refreshRequest:
+  http.refreshRequest:
     properties:
       refresh_token:
         type: string
     required:
     - refresh_token
     type: object
-  handler.refreshResponse:
+  http.refreshResponse:
     properties:
       access_token:
         type: string
-      expires_in:
-        description: Время жизни токена в секундах
-        type: integer
       refresh_token:
         type: string
       token_type:
         type: string
     type: object
-  handler.validateRequest:
+  http.validateRequest:
     properties:
       token:
         type: string
     required:
     - token
     type: object
-  handler.validateResponse:
+  http.validateResponse:
     properties:
       expires:
         type: integer
@@ -116,14 +110,14 @@ paths:
         name: credentials
         required: true
         schema:
-          $ref: '#/definitions/handler.loginRequest'
+          $ref: '#/definitions/http.loginRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.loginResponse'
+            $ref: '#/definitions/http.loginResponse'
         "400":
           description: Bad Request
           schema:
@@ -150,14 +144,14 @@ paths:
         name: logoutRequest
         required: true
         schema:
-          $ref: '#/definitions/handler.logoutRequest'
+          $ref: '#/definitions/http.logoutRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.logoutResponse'
+            $ref: '#/definitions/http.logoutResponse'
         "400":
           description: Bad Request
           schema:
@@ -184,14 +178,14 @@ paths:
         name: refreshRequest
         required: true
         schema:
-          $ref: '#/definitions/handler.refreshRequest'
+          $ref: '#/definitions/http.refreshRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.refreshResponse'
+            $ref: '#/definitions/http.refreshResponse'
         "400":
           description: Bad Request
           schema:
@@ -218,14 +212,14 @@ paths:
         name: validateRequest
         required: true
         schema:
-          $ref: '#/definitions/handler.validateRequest'
+          $ref: '#/definitions/http.validateRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.validateResponse'
+            $ref: '#/definitions/http.validateResponse'
         "400":
           description: Bad Request
           schema:
@@ -253,6 +247,8 @@ paths:
             items:
               $ref: '#/definitions/model.Note'
             type: array
+      security:
+      - BearerAuth: []
       summary: Получить все заметки
       tags:
       - notes
@@ -266,7 +262,7 @@ paths:
         name: note
         required: true
         schema:
-          $ref: '#/definitions/handler.createNoteRequest'
+          $ref: '#/definitions/http.createNoteRequest'
       produces:
       - application/json
       responses:
@@ -280,6 +276,8 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Создать новую заметку
       tags:
       - notes
@@ -307,6 +305,8 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Удалить заметку
       tags:
       - notes
@@ -331,6 +331,8 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Получить заметку по ID
       tags:
       - notes
@@ -369,6 +371,8 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Обновить заметку
       tags:
       - notes
@@ -397,7 +401,7 @@ paths:
         name: user
         required: true
         schema:
-          $ref: '#/definitions/handler.createUserRequest'
+          $ref: '#/definitions/http.createUserRequest'
       produces:
       - application/json
       responses:
@@ -438,6 +442,8 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Удалить пользователя
       tags:
       - users
@@ -462,6 +468,8 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Получить пользователя по ID
       tags:
       - users
@@ -500,6 +508,8 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Обновить пользователя
       tags:
       - users
