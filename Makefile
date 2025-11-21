@@ -55,15 +55,41 @@ test:
 build: proto swag
 	@go build ./...
 
+.PHONY: docker-down-v
+docker-down-v:
+	@echo "🐳 Stopping and removing containers with volume cleanup..."
+	@docker compose down -v
+
+.PHONY: docker-up
+docker-up:
+	@echo "🐳 Starting services with Docker Compose..."
+	@docker compose up -d
+
+.PHONY: migrate
+migrate:
+	@echo "🗄️ Running database migrations..."
+	@chmod +x scripts/migrate.sh
+	@./scripts/migrate.sh
+
+.PHONY: setup-db
+setup-db: docker-down-v docker-up
+	@echo "⏳ Waiting for services to be ready..."
+	@sleep 10
+	@migrate
+
 .PHONY: help
 help:
 	@echo "Available targets:"
-	@echo "  proto       - Generate protobuf code"
-	@echo "  proto-deps  - Install Go protobuf dependencies (requires protoc)"
-	@echo "  swag        - Generate Swagger documentation"
-	@echo "  swag-deps   - Install Swaggo dependencies"
-	@echo "  all         - Install proto-deps and generate proto"
-	@echo "  test        - Run tests"
-	@echo "  clean-proto - Remove generated protobuf code"
+	@echo "  proto         - Generate protobuf code"
+	@echo "  proto-deps    - Install Go protobuf dependencies (requires protoc)"
+	@echo "  swag          - Generate Swagger documentation"
+	@echo "  swag-deps     - Install Swaggo dependencies"
+	@echo "  all           - Install proto-deps and generate proto"
+	@echo "  test          - Run tests"
+	@echo "  clean-proto   - Remove generated protobuf code"
+	@echo "  docker-down-v - Stop containers and remove volumes"
+	@echo "  docker-up     - Start services with Docker Compose"
+	@echo "  migrate       - Run database migrations"
+	@echo "  setup-db      - Clean start with Docker and run migrations"
 	@echo ""
 	@echo "⚠️ Note: protoc must be installed separately via system package manager"
