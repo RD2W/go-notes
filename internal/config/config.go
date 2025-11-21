@@ -288,7 +288,7 @@ func newDefaultConfig() *Config {
 			Port:       5432,
 			Name:       "go_notes",
 			User:       "postgres",
-			Password:   "",
+			Password:   "notes_password",
 			SSLMode:    "disable",
 			PoolSize:   10,
 			Parameters: "",
