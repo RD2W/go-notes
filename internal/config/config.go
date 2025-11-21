@@ -103,6 +103,14 @@ func LoadConfig(configPath string) (*Config, error) {
 
 // loadFromEnv загружает значения из переменных окружения
 func (c *Config) loadFromEnv() {
+	// General
+	if env := os.Getenv("ENV"); env != "" {
+		c.Env = env
+	}
+	if logLevel := os.Getenv("LOG_LEVEL"); logLevel != "" {
+		c.LogLevel = logLevel
+	}
+
 	// Server
 	if port := os.Getenv("SERVER_PORT"); port != "" {
 		c.Server.Port = port
