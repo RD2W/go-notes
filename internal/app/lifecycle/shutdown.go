@@ -31,7 +31,7 @@ func ShutdownHTTPServer(cfg *config.Config, server *http.Server) {
 	defer cancel()
 
 	if err := server.Shutdown(ctx); err != nil {
-		log.Fatalf("Ошибка при graceful shutdown веб-сервера: %v", err)
+		log.Printf("Ошибка при graceful shutdown веб-сервера: %v", err)
 	}
 }
 
