@@ -101,7 +101,12 @@ func (gc *GRPCClient) Run() {
 		log.Printf("Ошибка при создании пользователя: %v", err)
 		return
 	} else {
-		fmt.Printf("Создан пользователь: ID=%s, Имя=%s, Email=%s\n", createUserResp.User.Id, createUserResp.User.Username, createUserResp.User.Email)
+		if createUserResp.User != nil && createUserResp.User.Id != "" {
+			fmt.Printf("Создан пользователь: ID=%s, Имя=%s, Email=%s\n", createUserResp.User.Id, createUserResp.User.Username, createUserResp.User.Email)
+		} else {
+			log.Printf("Ошибка: createUserResp.User или createUserResp.User.Id равен nil/пустой")
+			return
+		}
 	}
 
 	// Логинимся для получения токенов
@@ -125,15 +130,28 @@ func (gc *GRPCClient) Run() {
 
 	// Создание заметки
 	fmt.Println("\n3. Создание заметки:")
-	createNoteResp, err := gc.noteClient.CreateNote(authCtx, &note.CreateNoteRequest{
-		Title:   "Тестовая заметка",
-		Content: "Это содержимое тестовой заметки",
-		UserId:  createUserResp.User.Id,
-	})
-	if err != nil {
-		log.Printf("Ошибка при создании заметки: %v", err)
+	var createNoteResp *note.NoteResponse
+	if createUserResp != nil && createUserResp.User != nil {
+		user := createUserResp.User
+		if user.Id != "" {
+			resp, err := gc.noteClient.CreateNote(authCtx, &note.CreateNoteRequest{
+				Title:   "Тестовая заметка",
+				Content: "Это содержимое тестовой заметки",
+				UserId:  user.Id,
+			})
+			if err != nil {
+				log.Printf("Ошибка при создании заметки: %v", err)
+			} else {
+				createNoteResp = resp
+				fmt.Printf("Создана заметка: ID=%s, Заголовок=%s\n", createNoteResp.Note.Id, createNoteResp.Note.Title)
+			}
+		} else {
+			log.Printf("Ошибка: createUserResp.User.Id пустой или равен nil")
+			return
+		}
 	} else {
-		fmt.Printf("Создана заметка: ID=%s, Заголовок=%s\n", createNoteResp.Note.Id, createNoteResp.Note.Title)
+		log.Printf("Ошибка: createUserResp или createUserResp.User равен nil")
+		return
 	}
 
 	// Получение списка заметок
@@ -216,10 +234,35 @@ func (gc *GRPCClient) Run() {
 	// Небольшая задержка перед удалением
 	time.Sleep(1 * time.Second)
 
-	// Удаление последней созданной заметки
-	if createNoteResp != nil {
-		fmt.Printf("\n10. Удаление заметки (%s):\n", createNoteResp.Note.Id)
-		deleteNoteResp, err := gc.noteClient.DeleteNote(authCtx, &note.GetRequest{Id: createNoteResp.Note.Id})
+	// Создание второй заметки для тестирования удаления
+	var createNoteResp2 *note.NoteResponse
+	if createUserResp != nil && createUserResp.User != nil {
+		user := createUserResp.User
+		if user.Id != "" {
+			resp, err := gc.noteClient.CreateNote(authCtx, &note.CreateNoteRequest{
+				Title:   "Вторая тестовая заметка",
+				Content: "Это содержимое второй тестовой заметки",
+				UserId:  user.Id,
+			})
+			if err != nil {
+				log.Printf("Ошибка при создании второй заметки: %v", err)
+			} else {
+				createNoteResp2 = resp
+				fmt.Printf("Создана вторая заметка: ID=%s, Заголовок=%s\n", createNoteResp2.Note.Id, createNoteResp2.Note.Title)
+			}
+		} else {
+			log.Printf("Ошибка: createUserResp.User.Id пустой или равен nil")
+			return
+		}
+	} else {
+		log.Printf("Ошибка: createUserResp или createUserResp.User равен nil")
+		return
+	}
+
+	// Удаляем вторую заметку
+	if createNoteResp2 != nil {
+		fmt.Printf("\n10. Удаление второй заметки (%s):\n", createNoteResp2.Note.Id)
+		deleteNoteResp, err := gc.noteClient.DeleteNote(authCtx, &note.GetRequest{Id: createNoteResp2.Note.Id})
 		if err != nil {
 			log.Printf("Ошибка при удалении заметки: %v", err)
 		} else {
@@ -228,7 +271,7 @@ func (gc *GRPCClient) Run() {
 	}
 
 	// Удаление последнего созданного пользователя
-	if createUserResp != nil {
+	if createUserResp != nil && createUserResp.User != nil && createUserResp.User.Id != "" {
 		fmt.Printf("\n11. Удаление пользователя (%s):\n", createUserResp.User.Id)
 		deleteUserResp, err := gc.userClient.DeleteUser(authCtx, &user.GetRequest{Id: createUserResp.User.Id})
 		if err != nil {
@@ -236,6 +279,8 @@ func (gc *GRPCClient) Run() {
 		} else {
 			fmt.Printf("Результат удаления: %t, Сообщение: %s\n", deleteUserResp.Success, deleteUserResp.Message)
 		}
+	} else {
+		log.Printf("Ошибка: createUserResp, createUserResp.User или createUserResp.User.Id равен nil/пустой, пропускаем удаление пользователя")
 	}
 
 	// Логаут
@@ -249,25 +294,34 @@ func (gc *GRPCClient) Run() {
 		fmt.Printf("Результат выхода: %t, Сообщение: %s\n", logoutResp.Success, logoutResp.Message)
 	}
 
-	// Проверяем, что токен действительно отозван - пытаемся создать заметку после разлогинивания
+	// Проверяем, что токен действительно отозван - пытаемся создать заметку после разлогинирования
 	fmt.Println("\n13. Проверка использования отозванного токена:")
 	// Создаем новый контекст с тем же токеном
 	invalidCtx := gc.createAuthContext(context.Background(), loginResp.AccessToken)
-	_, err = gc.noteClient.CreateNote(invalidCtx, &note.CreateNoteRequest{
-		Title:   "Тестовая заметка после логаута",
-		Content: "Эта заметка не должна быть создана",
-		UserId:  createUserResp.User.Id,
-	})
-	if err != nil {
-		fmt.Printf("Токен успешно отозван, ошибка при создании заметки: %v\n", err)
-		// Проверяем, содержит ли ошибка сообщение об отозванном токене
-		if strings.Contains(err.Error(), "токен был отозван") || strings.Contains(err.Error(), "token has been revoked") {
-			fmt.Println("Токен был корректно отозван и не может быть использован")
+	if createUserResp != nil && createUserResp.User != nil {
+		user := createUserResp.User
+		if user.Id != "" {
+			_, err = gc.noteClient.CreateNote(invalidCtx, &note.CreateNoteRequest{
+				Title:   "Тестовая заметка после логаута",
+				Content: "Эта заметка не должна быть создана",
+				UserId:  user.Id,
+			})
+			if err != nil {
+				fmt.Printf("Токен успешно отозван, ошибка при создании заметки: %v\n", err)
+				// Проверяем, содержит ли ошибка сообщение об отозванном токене
+				if strings.Contains(err.Error(), "токен был отозван") || strings.Contains(err.Error(), "token has been revoked") {
+					fmt.Println("Токен был корректно отозван и не может быть использован")
+				} else {
+					fmt.Println("Ошибка связана с чем-то другим, не с отозванием токена")
+				}
+			} else {
+				fmt.Println("Токен не был отозван, заметка создана")
+			}
 		} else {
-			fmt.Println("Ошибка связана с чем-то другим, не с отозванием токена")
+			log.Printf("Предупреждение: createUserResp.User.Id пустой или равен nil, пропускаем проверку токена")
 		}
 	} else {
-		fmt.Println("Токен не был отозван, заметка создана")
+		log.Printf("Предупреждение: createUserResp или createUserResp.User равен nil, пропускаем проверку токена")
 	}
 
 	fmt.Println("\nТестирование gRPC клиента с аутентификацией завершено.")
