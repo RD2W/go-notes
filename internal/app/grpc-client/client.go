@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/rd2w/go-notes/internal/config"
@@ -83,13 +84,22 @@ func (gc *GRPCClient) Run() {
 
 	// Создание пользователя
 	fmt.Println("\n1. Создание пользователя:")
+
+	// Генерируем уникальное имя пользователя и email
+	username := fmt.Sprintf("testuser_%d", time.Now().Unix())
+	email := fmt.Sprintf("test_%d@example.com", time.Now().Unix())
+	password := "password123"
+
+	// Создаем пользователя с уникальными данными
 	createUserResp, err := gc.userClient.CreateUser(context.Background(), &user.CreateUserRequest{
-		Username: "testuser",
-		Email:    "test@example.com",
-		Password: "password123",
+		Username: username,
+		Email:    email,
+		Password: password,
 	})
+
 	if err != nil {
 		log.Printf("Ошибка при создании пользователя: %v", err)
+		return
 	} else {
 		fmt.Printf("Создан пользователь: ID=%s, Имя=%s, Email=%s\n", createUserResp.User.Id, createUserResp.User.Username, createUserResp.User.Email)
 	}
@@ -97,11 +107,13 @@ func (gc *GRPCClient) Run() {
 	// Логинимся для получения токенов
 	fmt.Println("\n2. Аутентификация пользователя:")
 	loginResp, err := gc.authClient.Login(context.Background(), &authpb.LoginRequest{
-		Username: "testuser",
-		Password: "password123",
+		Username: username,
+		Password: password,
 	})
 	if err != nil {
-		log.Fatalf("Ошибка при аутентификации: %v", err)
+		log.Printf("Ошибка при аутентификации: %v", err)
+		// Если аутентификация не удалась, завершаем выполнение
+		return
 	}
 	fmt.Printf("Успешная аутентификация. Access токен: %s\n", loginResp.AccessToken)
 
@@ -116,6 +128,7 @@ func (gc *GRPCClient) Run() {
 	createNoteResp, err := gc.noteClient.CreateNote(authCtx, &note.CreateNoteRequest{
 		Title:   "Тестовая заметка",
 		Content: "Это содержимое тестовой заметки",
+		UserId:  createUserResp.User.Id,
 	})
 	if err != nil {
 		log.Printf("Ошибка при создании заметки: %v", err)
@@ -234,6 +247,27 @@ func (gc *GRPCClient) Run() {
 		log.Printf("Ошибка при выходе: %v", err)
 	} else {
 		fmt.Printf("Результат выхода: %t, Сообщение: %s\n", logoutResp.Success, logoutResp.Message)
+	}
+
+	// Проверяем, что токен действительно отозван - пытаемся создать заметку после разлогинивания
+	fmt.Println("\n13. Проверка использования отозванного токена:")
+	// Создаем новый контекст с тем же токеном
+	invalidCtx := gc.createAuthContext(context.Background(), loginResp.AccessToken)
+	_, err = gc.noteClient.CreateNote(invalidCtx, &note.CreateNoteRequest{
+		Title:   "Тестовая заметка после логаута",
+		Content: "Эта заметка не должна быть создана",
+		UserId:  createUserResp.User.Id,
+	})
+	if err != nil {
+		fmt.Printf("Токен успешно отозван, ошибка при создании заметки: %v\n", err)
+		// Проверяем, содержит ли ошибка сообщение об отозванном токене
+		if strings.Contains(err.Error(), "токен был отозван") || strings.Contains(err.Error(), "token has been revoked") {
+			fmt.Println("Токен был корректно отозван и не может быть использован")
+		} else {
+			fmt.Println("Ошибка связана с чем-то другим, не с отозванием токена")
+		}
+	} else {
+		fmt.Println("Токен не был отозван, заметка создана")
 	}
 
 	fmt.Println("\nТестирование gRPC клиента с аутентификацией завершено.")

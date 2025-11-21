@@ -5,11 +5,13 @@ import (
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 
+	tokenauth "github.com/rd2w/go-notes/internal/auth"
 	"github.com/rd2w/go-notes/internal/delivery/http"
+	"github.com/rd2w/go-notes/internal/middleware"
 )
 
 // SetupRoutes настраивает все маршруты для веб-сервера
-func SetupRoutes(r *gin.Engine, noteHandler *http.NoteHandler, userHandler *http.UserHandler, authHandler *http.AuthHandler) {
+func SetupRoutes(r *gin.Engine, noteHandler *http.NoteHandler, userHandler *http.UserHandler, authHandler *http.AuthHandler, tokenManager *tokenauth.TokenManager) {
 	// Создаем группу маршрутов для API
 	api := r.Group("/api")
 	{
@@ -27,7 +29,7 @@ func SetupRoutes(r *gin.Engine, noteHandler *http.NoteHandler, userHandler *http
 
 		// Защищенные маршруты для заметок
 		notes := api.Group("/notes")
-		// notes.Use(middleware.AuthMiddleware(tokenManager)) // Потребуется обновить middleware для работы с новой архитектурой
+		notes.Use(middleware.AuthMiddleware(tokenManager))
 		{
 			notes.POST("", noteHandler.CreateNote)
 			notes.GET("/:id", noteHandler.GetNote)
@@ -41,7 +43,7 @@ func SetupRoutes(r *gin.Engine, noteHandler *http.NoteHandler, userHandler *http
 
 		// Защищенные маршруты для пользователей
 		users := api.Group("/users")
-		// users.Use(middleware.AuthMiddleware(tokenManager)) // Потребуется обновить middleware для работы с новой архитектурой
+		users.Use(middleware.AuthMiddleware(tokenManager))
 		{
 			users.GET("/:id", userHandler.GetUser)
 			users.PUT("/:id", userHandler.UpdateUser)

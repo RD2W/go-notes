@@ -1,8 +1,11 @@
 package grpcserver
 
 import (
+	"context"
+	"fmt"
 	"log"
 	"net"
+	"strings"
 
 	"github.com/rd2w/go-notes/internal/app/lifecycle"
 	tokenauth "github.com/rd2w/go-notes/internal/auth"
@@ -17,6 +20,7 @@ import (
 	grpcnote "github.com/rd2w/go-notes/pkg/proto/note"
 	grpcuser "github.com/rd2w/go-notes/pkg/proto/user"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/reflection"
 )
 
@@ -53,8 +57,45 @@ func NewGRPCServer(cfg *config.Config) *GRPCServer {
 		log.Fatalf("Ошибка при создании сетевого слушателя: %v", err)
 	}
 
-	// Создаем gRPC сервер с помощью библиотеки
-	grpcServerLib := grpc.NewServer()
+	// Создаем interceptor для проверки токенов
+	authInterceptor := func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+		// Пропускаем проверку для методов аутентификации и создания пользователя
+		if info.FullMethod == "/auth.AuthService/Login" ||
+			info.FullMethod == "/auth.AuthService/Logout" ||
+			info.FullMethod == "/auth.AuthService/Refresh" ||
+			info.FullMethod == "/auth.AuthService/ValidateToken" ||
+			info.FullMethod == "/users.UserService/CreateUser" {
+			return handler(ctx, req)
+		}
+
+		// Извлекаем токен из контекста
+		md, ok := metadata.FromIncomingContext(ctx)
+		if !ok {
+			return nil, fmt.Errorf("metadata is not provided")
+		}
+
+		authHeaders := md["authorization"]
+		if len(authHeaders) == 0 {
+			return nil, fmt.Errorf("authorization token is not provided")
+		}
+
+		tokenString := strings.TrimPrefix(authHeaders[0], "Bearer ")
+		if tokenString == authHeaders[0] {
+			return nil, fmt.Errorf("authorization token is not in Bearer format")
+		}
+
+		// Проверяем токен на валидность и наличие в черном списке
+		_, err := tokenManager.ValidateAccessToken(tokenString)
+		if err != nil {
+			return nil, fmt.Errorf("invalid or blacklisted token: %w", err)
+		}
+
+		// Токен валиден, продолжаем обработку запроса
+		return handler(ctx, req)
+	}
+
+	// Создаем gRPC сервер с помощью библиотеки с interceptor
+	grpcServerLib := grpc.NewServer(grpc.UnaryInterceptor(authInterceptor))
 
 	// Инициализируем репозитории
 	noteRepo, err := postgres.NewPostgresNoteRepository(postgresClient.GetPool())

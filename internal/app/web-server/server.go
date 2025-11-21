@@ -75,7 +75,7 @@ func NewWebServer(cfg *config.Config) *WebServer {
 	authHandler := httpdelivery.NewAuthHandler(authService)
 
 	// Настраиваем маршруты
-	SetupRoutes(r, noteHandler, userHandler, authHandler)
+	SetupRoutes(r, noteHandler, userHandler, authHandler, tokenManager)
 
 	// Создаем HTTP сервер
 	srv := &http.Server{
