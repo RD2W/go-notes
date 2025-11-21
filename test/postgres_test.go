@@ -207,7 +207,10 @@ func TestPostgresIntegration(t *testing.T) {
 
 	// Возвращаем исходное имя пользователя для корректного тестирования
 	retrievedUser.SetUsername(originalUsername)
-	userRepo.Update(retrievedUser)
+	err = userRepo.Update(retrievedUser)
+	if err != nil {
+		t.Errorf("✗ Ошибка возврата исходного имени пользователя: %v\n", err)
+	}
 
 	// Тестируем удаление заметки
 	err = noteRepo.DeleteByID(note.GetID())

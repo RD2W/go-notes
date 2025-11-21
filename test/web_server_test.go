@@ -310,7 +310,11 @@ func TestAuthMiddleware(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Ошибка создания Redis клиента для теста middleware: %v", err)
 	}
-	defer redisClient.Close()
+	defer func() {
+		if err := redisClient.Close(); err != nil {
+			t.Errorf("✗ Ошибка закрытия Redis клиента: %v\n", err)
+		}
+	}()
 	tokenManager := auth.NewTokenManager(cfg, redisClient)
 	router.Use(middleware.AuthMiddleware(tokenManager))
 	router.GET(protectedRoute, func(c *gin.Context) {

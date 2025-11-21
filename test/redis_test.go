@@ -26,7 +26,11 @@ func TestRedisIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Ошибка подключения к Redis: %v", err)
 	}
-	defer redisClient.Close()
+	defer func() {
+		if err := redisClient.Close(); err != nil {
+			t.Errorf("✗ Ошибка закрытия Redis клиента: %v\n", err)
+		}
+	}()
 
 	// Создаем репозитории
 	tokenRepo, err := redis.NewRedisTokenRepository(redisClient)
