@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/rd2w/go-notes/internal/config"
 	"github.com/rd2w/go-notes/internal/database"
 	"github.com/rd2w/go-notes/internal/domain/repository"
 	"github.com/redis/go-redis/v9"
@@ -20,13 +19,8 @@ type RedisTokenRepository struct {
 // Ensure RedisTokenRepository implements TokenRepository interface
 var _ repository.TokenRepository = (*RedisTokenRepository)(nil)
 
-// NewRedisTokenRepository создает новое хранилище токенов в Redis
-func NewRedisTokenRepository(cfg *config.Config) (*RedisTokenRepository, error) {
-	redisClient, err := database.NewRedisClient(cfg)
-	if err != nil {
-		return nil, fmt.Errorf("ошибка создания Redis клиента: %w", err)
-	}
-
+// NewRedisTokenRepository создает новое хранилище токенов в Redis с указанным клиентом
+func NewRedisTokenRepository(redisClient *database.RedisClient) (*RedisTokenRepository, error) {
 	return &RedisTokenRepository{
 		client: redisClient.GetClient(),
 	}, nil

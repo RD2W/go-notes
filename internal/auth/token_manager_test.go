@@ -8,6 +8,30 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// MockTokenRepository - mock реализация для тестирования
+type MockTokenRepository struct {
+	blacklistedTokens map[string]bool
+}
+
+func NewMockTokenRepository() *MockTokenRepository {
+	return &MockTokenRepository{
+		blacklistedTokens: make(map[string]bool),
+	}
+}
+
+func (m *MockTokenRepository) AddToBlacklist(tokenID string, expiresAt time.Time) error {
+	m.blacklistedTokens[tokenID] = true
+	return nil
+}
+
+func (m *MockTokenRepository) IsBlacklisted(tokenID string) (bool, error) {
+	isBlacklisted, exists := m.blacklistedTokens[tokenID]
+	if !exists {
+		return false, nil
+	}
+	return isBlacklisted, nil
+}
+
 func createTestTokenManager() *TokenManager {
 	testConfig := &config.Config{
 		JWT: config.JWTConfig{
@@ -18,9 +42,19 @@ func createTestTokenManager() *TokenManager {
 		Refresh: config.RefreshConfig{
 			SecretKey: "test_refresh_secret_key_for_testing",
 		},
+		Redis: config.RedisConfig{
+			Host:     "localhost",
+			Port:     6379,
+			Password: "",
+			DB:       0,
+			PoolSize: 10,
+		},
 	}
 
-	return NewTokenManager(testConfig)
+	// Используем mock хранилище для тестов
+	mockStore := NewMockTokenRepository()
+
+	return NewTokenManagerWithStore(testConfig, mockStore)
 }
 
 func TestTokenManager_GenerateTokens(t *testing.T) {
@@ -104,7 +138,9 @@ func TestTokenManager_ValidateAccessToken_Expired(t *testing.T) {
 		},
 	}
 
-	tm := NewTokenManager(testConfig)
+	// Используем mock хранилище для теста
+	mockStore := NewMockTokenRepository()
+	tm := NewTokenManagerWithStore(testConfig, mockStore)
 
 	username := "testuser"
 	accessToken, _, err := tm.GenerateTokens(username)
@@ -210,84 +246,6 @@ func TestTokenManager_Logout_InvalidToken(t *testing.T) {
 	assert.Contains(t, err.Error(), "refresh токен недействителен")
 }
 
-func TestInMemoryTokenStore_AddToBlacklistAndIsBlacklisted(t *testing.T) {
-	store := NewInMemoryTokenStore()
-
-	tokenID := "test-token-id"
-	expiresAt := time.Now().Add(1 * time.Hour)
-
-	// Добавляем токен в черный список
-	err := store.AddToBlacklist(tokenID, expiresAt)
-	assert.NoError(t, err)
-
-	// Проверяем, что токен в черном списке
-	isBlacklisted, err := store.IsBlacklisted(tokenID)
-	assert.NoError(t, err)
-	assert.True(t, isBlacklisted)
-
-	// Проверяем несуществующий токен
-	isBlacklisted, err = store.IsBlacklisted("other-token-id")
-	assert.NoError(t, err)
-	assert.False(t, isBlacklisted)
-}
-
-func TestInMemoryTokenStore_AddToBlacklist(t *testing.T) {
-	store := NewInMemoryTokenStore()
-
-	tokenID := "test-token-id"
-	expiresAt := time.Now().Add(1 * time.Hour)
-
-	// Добавляем токен в черный список
-	err := store.AddToBlacklist(tokenID, expiresAt)
-	assert.NoError(t, err)
-
-	// Проверяем, что токен в черном списке
-	isBlacklisted, err := store.IsBlacklisted(tokenID)
-	assert.NoError(t, err)
-	assert.True(t, isBlacklisted)
-}
-
-func TestInMemoryTokenStore_Cleanup(t *testing.T) {
-	store := NewInMemoryTokenStore()
-
-	// Добавляем просроченный токен в черный список
-	expiredTokenID := "expired-token-id"
-	expiredAt := time.Now().Add(-1 * time.Hour) // Токен просрочен
-
-	err := store.AddToBlacklist(expiredTokenID, expiredAt)
-	assert.NoError(t, err)
-
-	// Добавляем валидный токен в черный список
-	validTokenID := "valid-token-id"
-	validAt := time.Now().Add(1 * time.Hour) // Токен валиден
-
-	err = store.AddToBlacklist(validTokenID, validAt)
-	assert.NoError(t, err)
-
-	// Выполняем очистку
-	err = store.Cleanup()
-	assert.NoError(t, err)
-
-	// Проверяем, что просроченный токен удален из черного списка
-	isBlacklisted, err := store.IsBlacklisted(expiredTokenID)
-	assert.NoError(t, err)
-	assert.False(t, isBlacklisted)
-
-	// Проверяем, что валидный токен остался в черном списке
-	isBlacklisted, err = store.IsBlacklisted(validTokenID)
-	assert.NoError(t, err)
-	assert.True(t, isBlacklisted)
-}
-
-func TestInMemoryTokenStore_IsBlacklistedNonExistentToken(t *testing.T) {
-	store := NewInMemoryTokenStore()
-
-	isBlacklisted, err := store.IsBlacklisted("non-existent-token")
-
-	assert.NoError(t, err)
-	assert.False(t, isBlacklisted)
-}
-
 func TestTokenManager_GetJWTExpiration(t *testing.T) {
 	expectedDuration := 2 * time.Hour
 	testConfig := &config.Config{
@@ -301,7 +259,9 @@ func TestTokenManager_GetJWTExpiration(t *testing.T) {
 		},
 	}
 
-	tm := NewTokenManager(testConfig)
+	// Используем mock хранилище для теста
+	mockStore := NewMockTokenRepository()
+	tm := NewTokenManagerWithStore(testConfig, mockStore)
 
 	duration := tm.GetJWTExpiration()
 

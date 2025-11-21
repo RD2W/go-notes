@@ -10,6 +10,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/rd2w/go-notes/internal/config"
+	"github.com/rd2w/go-notes/internal/database"
 	"github.com/rd2w/go-notes/internal/domain/repository"
 	"github.com/rd2w/go-notes/internal/repository/redis"
 )
@@ -31,7 +32,7 @@ type TokenManager struct {
 }
 
 // NewTokenManager создает новый менеджер токенов
-func NewTokenManager(config *config.Config) *TokenManager {
+func NewTokenManager(config *config.Config, redisClient *database.RedisClient) *TokenManager {
 	accessTokenDuration, err := time.ParseDuration(config.JWT.AccessTokenTTL)
 	if err != nil {
 		log.Printf("Ошибка парсинга access_token_ttl, используется значение по умолчанию 15m: %v", err)
@@ -46,7 +47,7 @@ func NewTokenManager(config *config.Config) *TokenManager {
 		}
 	}
 
-	tokenStore, err := redis.NewRedisTokenRepository(config)
+	tokenStore, err := redis.NewRedisTokenRepository(redisClient)
 	if err != nil {
 		log.Fatalf("Ошибка создания Redis хранилища токенов: %v", err)
 	}
@@ -57,6 +58,31 @@ func NewTokenManager(config *config.Config) *TokenManager {
 		jwtExpiration:     accessTokenDuration,
 		refreshExpiration: refreshExpiration,
 		store:             tokenStore,
+	}
+}
+
+// NewTokenManagerWithStore создает новый менеджер токенов с указанным хранилищем (для тестирования)
+func NewTokenManagerWithStore(config *config.Config, store repository.TokenRepository) *TokenManager {
+	accessTokenDuration, err := time.ParseDuration(config.JWT.AccessTokenTTL)
+	if err != nil {
+		log.Printf("Ошибка парсинга access_token_ttl, используется значение по умолчанию 15m: %v", err)
+		accessTokenDuration = 15 * time.Minute
+	}
+
+	refreshExpiration := 7 * 24 * time.Hour // Значение по умолчанию 7 дней
+	// Используем refresh_token_ttl из JWT конфигурации
+	if config.JWT.RefreshTokenTTL != "" {
+		if parsedRefreshDuration, parseErr := time.ParseDuration(config.JWT.RefreshTokenTTL); parseErr == nil {
+			refreshExpiration = parsedRefreshDuration
+		}
+	}
+
+	return &TokenManager{
+		jwtSecret:         []byte(config.JWT.SecretKey),
+		refreshSecret:     []byte(config.Refresh.SecretKey),
+		jwtExpiration:     accessTokenDuration,
+		refreshExpiration: refreshExpiration,
+		store:             store,
 	}
 }
 

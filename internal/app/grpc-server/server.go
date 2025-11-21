@@ -22,16 +22,24 @@ import (
 
 // GRPCServer структура gRPC-сервера
 type GRPCServer struct {
-	config     *config.Config
-	grpcServer *grpc.Server
-	listener   net.Listener
-	dbClient   *database.PostgresClient
+	config       *config.Config
+	grpcServer   *grpc.Server
+	listener     net.Listener
+	dbClient     *database.PostgresClient
+	tokenManager *tokenauth.TokenManager
+	redisClient  *database.RedisClient
 }
 
 // NewGRPCServer создает новый экземпляр gRPC-сервера
 func NewGRPCServer(cfg *config.Config) *GRPCServer {
-	// Создаем токен-менеджер
-	tokenManager := tokenauth.NewTokenManager(cfg)
+	// Создаем Redis клиент
+	redisClient, err := database.NewRedisClient(cfg)
+	if err != nil {
+		log.Fatalf("Ошибка подключения к Redis: %v", err)
+	}
+
+	// Создаем токен-менеджер с переданным Redis клиентом
+	tokenManager := tokenauth.NewTokenManager(cfg, redisClient)
 
 	// Создаем клиент подключения к PostgreSQL
 	postgresClient, err := database.NewPostgresClient(cfg.Postgres)
@@ -79,10 +87,12 @@ func NewGRPCServer(cfg *config.Config) *GRPCServer {
 
 	// Создаем экземпляр сервера
 	grpcServer := &GRPCServer{
-		config:     cfg,
-		grpcServer: grpcServerLib,
-		listener:   lis,
-		dbClient:   postgresClient,
+		config:       cfg,
+		grpcServer:   grpcServerLib,
+		listener:     lis,
+		dbClient:     postgresClient,
+		tokenManager: tokenManager,
+		redisClient:  redisClient,
 	}
 
 	return grpcServer
@@ -94,6 +104,13 @@ func (gs *GRPCServer) Run() error {
 		if gs.dbClient != nil {
 			gs.dbClient.Close()
 			log.Println("Соединение с базой данных закрыто")
+		}
+		if gs.redisClient != nil {
+			if err := gs.redisClient.Close(); err != nil {
+				log.Printf("Ошибка при закрытии Redis соединения: %v", err)
+			} else {
+				log.Println("Соединение с Redis закрыто")
+			}
 		}
 	}()
 

@@ -29,7 +29,7 @@ func TestRedisIntegration(t *testing.T) {
 	defer redisClient.Close()
 
 	// Создаем репозитории
-	tokenRepo, err := redis.NewRedisTokenRepository(cfg)
+	tokenRepo, err := redis.NewRedisTokenRepository(redisClient)
 	if err != nil {
 		t.Fatalf("Ошибка создания репозитория токенов: %v", err)
 	}

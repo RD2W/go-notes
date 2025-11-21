@@ -19,9 +19,11 @@ import (
 
 // WebServer структура веб-сервера
 type WebServer struct {
-	config   *config.Config
-	server   *http.Server
-	dbClient *database.PostgresClient
+	config       *config.Config
+	server       *http.Server
+	dbClient     *database.PostgresClient
+	tokenManager *tokenauth.TokenManager
+	redisClient  *database.RedisClient
 }
 
 // NewWebServer создает новый экземпляр веб-сервера
@@ -36,8 +38,14 @@ func NewWebServer(cfg *config.Config) *WebServer {
 	// Создаем Gin роутер
 	r := gin.Default()
 
-	// Создаем токен-менеджер
-	tokenManager := tokenauth.NewTokenManager(cfg)
+	// Создаем Redis клиент
+	redisClient, err := database.NewRedisClient(cfg)
+	if err != nil {
+		log.Fatalf("Ошибка подключения к Redis: %v", err)
+	}
+
+	// Создаем токен-менеджер с переданным Redis клиентом
+	tokenManager := tokenauth.NewTokenManager(cfg, redisClient)
 
 	// Создаем клиент подключения к PostgreSQL
 	postgresClient, err := database.NewPostgresClient(cfg.Postgres)
@@ -76,9 +84,11 @@ func NewWebServer(cfg *config.Config) *WebServer {
 	}
 
 	webServer := &WebServer{
-		config:   cfg,
-		server:   srv,
-		dbClient: postgresClient,
+		config:       cfg,
+		server:       srv,
+		dbClient:     postgresClient,
+		tokenManager: tokenManager,
+		redisClient:  redisClient,
 	}
 
 	return webServer
@@ -90,6 +100,13 @@ func (ws *WebServer) Run() error {
 		if ws.dbClient != nil {
 			ws.dbClient.Close()
 			log.Println("Соединение с базой данных закрыто")
+		}
+		if ws.redisClient != nil {
+			if err := ws.redisClient.Close(); err != nil {
+				log.Printf("Ошибка при закрытии Redis соединения: %v", err)
+			} else {
+				log.Println("Соединение с Redis закрыто")
+			}
 		}
 	}()
 
