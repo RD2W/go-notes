@@ -6,11 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"sync"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/rd2w/go-notes/internal/config"
+	"github.com/rd2w/go-notes/internal/database"
+	"github.com/rd2w/go-notes/internal/domain/repository"
+	"github.com/rd2w/go-notes/internal/repository/redis"
 )
 
 // TokenClaims структура для хранения данных в JWT токене
@@ -20,97 +22,47 @@ type TokenClaims struct {
 	jwt.RegisteredClaims
 }
 
-// TokenStore интерфейс для хранения токенов
-type TokenStore interface {
-	AddToBlacklist(tokenID string, expiresAt time.Time) error
-	IsBlacklisted(tokenID string) (bool, error)
-	Cleanup() error
-}
-
-// InMemoryTokenStore реализация хранилища токенов в памяти (используется как blacklist)
-type InMemoryTokenStore struct {
-	blacklistedTokens map[string]time.Time // хранит только отозванные токены
-	mutex             sync.RWMutex
-}
-
-// NewInMemoryTokenStore создает новое хранилище токенов в памяти (blacklist)
-func NewInMemoryTokenStore() *InMemoryTokenStore {
-	store := &InMemoryTokenStore{
-		blacklistedTokens: make(map[string]time.Time),
-	}
-
-	// Запускаем горутину для очистки просроченных токенов
-	go store.startCleanupTicker()
-
-	return store
-}
-
-// AddToBlacklist добавляет токен в черный список
-func (s *InMemoryTokenStore) AddToBlacklist(tokenID string, expiresAt time.Time) error {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
-	s.blacklistedTokens[tokenID] = expiresAt
-
-	return nil
-}
-
-// IsBlacklisted проверяет, находится ли токен в черном списке
-func (s *InMemoryTokenStore) IsBlacklisted(tokenID string) (bool, error) {
-	s.mutex.RLock()
-	defer s.mutex.RUnlock()
-
-	expiresAt, exists := s.blacklistedTokens[tokenID]
-	if !exists {
-		return false, nil
-	}
-
-	// Проверяем, не истек ли срок действия токена
-	if time.Now().After(expiresAt) {
-		return false, nil
-	}
-
-	return true, nil
-}
-
-// Cleanup удаляет просроченные токены из черного списка
-func (s *InMemoryTokenStore) Cleanup() error {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
-	now := time.Now()
-	for tokenID, expiresAt := range s.blacklistedTokens {
-		if now.After(expiresAt) {
-			delete(s.blacklistedTokens, tokenID)
-		}
-	}
-
-	return nil
-}
-
-// startCleanupTicker запускает тикер для периодической очистки просроченных токенов
-func (s *InMemoryTokenStore) startCleanupTicker() {
-	ticker := time.NewTicker(1 * time.Hour) // Очищать раз в час
-	defer ticker.Stop()
-
-	for range ticker.C {
-		if err := s.Cleanup(); err != nil {
-			log.Printf("Error cleaning up tokens: %v", err)
-		}
-	}
-}
-
 // TokenManager структура для управления токенами
 type TokenManager struct {
 	jwtSecret         []byte
 	refreshSecret     []byte
 	jwtExpiration     time.Duration
 	refreshExpiration time.Duration
-	store             TokenStore
+	store             repository.TokenRepository
 }
 
 // NewTokenManager создает новый менеджер токенов
-func NewTokenManager(config *config.Config) *TokenManager {
+func NewTokenManager(config *config.Config, redisClient *database.RedisClient) *TokenManager {
+	accessTokenDuration, err := time.ParseDuration(config.JWT.AccessTokenTTL)
+	if err != nil {
+		log.Printf("Ошибка парсинга access_token_ttl, используется значение по умолчанию 15m: %v", err)
+		accessTokenDuration = 15 * time.Minute
+	}
+
+	refreshExpiration := 7 * 24 * time.Hour // Значение по умолчанию 7 дней
+	// Используем refresh_token_ttl из JWT конфигурации
+	if config.JWT.RefreshTokenTTL != "" {
+		if parsedRefreshDuration, parseErr := time.ParseDuration(config.JWT.RefreshTokenTTL); parseErr == nil {
+			refreshExpiration = parsedRefreshDuration
+		}
+	}
+
+	tokenStore, err := redis.NewRedisTokenRepository(redisClient)
+	if err != nil {
+		log.Fatalf("Ошибка создания Redis хранилища токенов: %v", err)
+	}
+
+	return &TokenManager{
+		jwtSecret:         []byte(config.JWT.SecretKey),
+		refreshSecret:     []byte(config.Refresh.SecretKey),
+		jwtExpiration:     accessTokenDuration,
+		refreshExpiration: refreshExpiration,
+		store:             tokenStore,
+	}
+}
+
+// NewTokenManagerWithStore создает новый менеджер токенов с указанным хранилищем (для тестирования)
+func NewTokenManagerWithStore(config *config.Config, store repository.TokenRepository) *TokenManager {
 	accessTokenDuration, err := time.ParseDuration(config.JWT.AccessTokenTTL)
 	if err != nil {
 		log.Printf("Ошибка парсинга access_token_ttl, используется значение по умолчанию 15m: %v", err)
@@ -130,7 +82,7 @@ func NewTokenManager(config *config.Config) *TokenManager {
 		refreshSecret:     []byte(config.Refresh.SecretKey),
 		jwtExpiration:     accessTokenDuration,
 		refreshExpiration: refreshExpiration,
-		store:             NewInMemoryTokenStore(),
+		store:             store,
 	}
 }
 

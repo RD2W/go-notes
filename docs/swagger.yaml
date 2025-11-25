@@ -1,6 +1,6 @@
 basePath: /api
 definitions:
-  handler.createNoteRequest:
+  http.createNoteRequest:
     properties:
       content:
         type: string
@@ -10,7 +10,7 @@ definitions:
     - content
     - title
     type: object
-  handler.createUserRequest:
+  http.createUserRequest:
     properties:
       email:
         type: string
@@ -23,7 +23,7 @@ definitions:
     - password
     - username
     type: object
-  handler.loginRequest:
+  http.loginRequest:
     properties:
       password:
         type: string
@@ -33,59 +33,53 @@ definitions:
     - password
     - username
     type: object
-  handler.loginResponse:
+  http.loginResponse:
     properties:
       access_token:
         type: string
-      expires_in:
-        description: Время жизни токена в секундах
-        type: integer
       refresh_token:
         type: string
       token_type:
         type: string
     type: object
-  handler.logoutRequest:
+  http.logoutRequest:
     properties:
       refresh_token:
         type: string
     required:
     - refresh_token
     type: object
-  handler.logoutResponse:
+  http.logoutResponse:
     properties:
       message:
         type: string
       success:
         type: boolean
     type: object
-  handler.refreshRequest:
+  http.refreshRequest:
     properties:
       refresh_token:
         type: string
     required:
     - refresh_token
     type: object
-  handler.refreshResponse:
+  http.refreshResponse:
     properties:
       access_token:
         type: string
-      expires_in:
-        description: Время жизни токена в секундах
-        type: integer
       refresh_token:
         type: string
       token_type:
         type: string
     type: object
-  handler.validateRequest:
+  http.validateRequest:
     properties:
       token:
         type: string
     required:
     - token
     type: object
-  handler.validateResponse:
+  http.validateResponse:
     properties:
       expires:
         type: integer
@@ -105,7 +99,7 @@ info:
   title: Go Notes API
   version: "1.0"
 paths:
-  /api/auth/login:
+  /auth/login:
     post:
       consumes:
       - application/json
@@ -116,14 +110,14 @@ paths:
         name: credentials
         required: true
         schema:
-          $ref: '#/definitions/handler.loginRequest'
+          $ref: '#/definitions/http.loginRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.loginResponse'
+            $ref: '#/definitions/http.loginResponse'
         "400":
           description: Bad Request
           schema:
@@ -139,7 +133,7 @@ paths:
       summary: Аутентификация пользователя
       tags:
       - auth
-  /api/auth/logout:
+  /auth/logout:
     post:
       consumes:
       - application/json
@@ -150,14 +144,14 @@ paths:
         name: logoutRequest
         required: true
         schema:
-          $ref: '#/definitions/handler.logoutRequest'
+          $ref: '#/definitions/http.logoutRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.logoutResponse'
+            $ref: '#/definitions/http.logoutResponse'
         "400":
           description: Bad Request
           schema:
@@ -173,7 +167,7 @@ paths:
       summary: Выход пользователя
       tags:
       - auth
-  /api/auth/refresh:
+  /auth/refresh:
     post:
       consumes:
       - application/json
@@ -184,14 +178,14 @@ paths:
         name: refreshRequest
         required: true
         schema:
-          $ref: '#/definitions/handler.refreshRequest'
+          $ref: '#/definitions/http.refreshRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.refreshResponse'
+            $ref: '#/definitions/http.refreshResponse'
         "400":
           description: Bad Request
           schema:
@@ -207,7 +201,7 @@ paths:
       summary: Обновление токенов
       tags:
       - auth
-  /api/auth/validate:
+  /auth/validate:
     post:
       consumes:
       - application/json
@@ -218,14 +212,14 @@ paths:
         name: validateRequest
         required: true
         schema:
-          $ref: '#/definitions/handler.validateRequest'
+          $ref: '#/definitions/http.validateRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.validateResponse'
+            $ref: '#/definitions/http.validateResponse'
         "400":
           description: Bad Request
           schema:
@@ -241,7 +235,7 @@ paths:
       summary: Проверка токена
       tags:
       - auth
-  /api/notes:
+  /notes:
     get:
       description: Возвращает список всех заметок
       produces:
@@ -253,6 +247,8 @@ paths:
             items:
               $ref: '#/definitions/model.Note'
             type: array
+      security:
+      - BearerAuth: []
       summary: Получить все заметки
       tags:
       - notes
@@ -266,7 +262,7 @@ paths:
         name: note
         required: true
         schema:
-          $ref: '#/definitions/handler.createNoteRequest'
+          $ref: '#/definitions/http.createNoteRequest'
       produces:
       - application/json
       responses:
@@ -280,10 +276,12 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Создать новую заметку
       tags:
       - notes
-  /api/notes/{id}:
+  /notes/{id}:
     delete:
       description: Удаляет заметку с указанным ID
       parameters:
@@ -307,6 +305,8 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Удалить заметку
       tags:
       - notes
@@ -331,6 +331,8 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Получить заметку по ID
       tags:
       - notes
@@ -369,10 +371,12 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Обновить заметку
       tags:
       - notes
-  /api/users:
+  /users:
     get:
       description: Возвращает список всех пользователей
       produces:
@@ -397,7 +401,7 @@ paths:
         name: user
         required: true
         schema:
-          $ref: '#/definitions/handler.createUserRequest'
+          $ref: '#/definitions/http.createUserRequest'
       produces:
       - application/json
       responses:
@@ -414,7 +418,7 @@ paths:
       summary: Создать нового пользователя
       tags:
       - users
-  /api/users/{id}:
+  /users/{id}:
     delete:
       description: Удаляет пользователя с указанным ID
       parameters:
@@ -438,6 +442,8 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Удалить пользователя
       tags:
       - users
@@ -462,6 +468,8 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Получить пользователя по ID
       tags:
       - users
@@ -500,6 +508,8 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Обновить пользователя
       tags:
       - users

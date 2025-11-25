@@ -4,13 +4,15 @@
 
 [![Go Version](https://img.shields.io/badge/Go-1.25+-blue.svg)](https://golang.org)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Go Test Coverage](https://img.shields.io/badge/Coverage-Test%20Coverage-1abc9c.svg)](https://golang.org)
+![Tests](https://github.com/RD2W/go-notes/actions/workflows/branch_merges.yml/badge.svg)
 
 ## Особенности проекта
 
 - **Веб-API**: RESTful API с использованием фреймворка Gin
 - **gRPC-сервер**: Реализация gRPC-сервисов для заметок и пользователей
 - **Аутентификация**: JWT-токены для защиты маршрутов
-- **Хранение данных**: Поддержка различных хранилищ (в памяти и в JSON-файлах)
+- **Хранение данных**: Поддержка различных хранилищ (PostgreSQL для основных данных и Redis для токенов)
 - **Документация API**: Swagger UI для веб-API
 - **Protocol Buffers**: Для определения gRPC-сервисов
 - **Тестирование**: Модульные тесты
@@ -24,17 +26,31 @@ go-notes/
 │   ├── grpc-client/        # Клиент gRPC
 │   ├── grpc-server/        # Сервер gRPC
 │   └── web-server/         # Веб-сервер (REST API)
+├── config/                 # Конфигурационные файлы
 ├── docs/                   # Документация Swagger
 ├── internal/               # Внутренний код приложения
-│   ├── grpc/               # Реализация gRPC-сервера
-│   ├── handler/            # Обработчики HTTP-запросов
+│   ├── app/                # Входные точки приложения
+│   ├── auth/               # Аутентификация и токены
+│   ├── config/             # Управление конфигурацией
+│   ├── database/           # Подключения к базам данных
+│   ├── delivery/           # Контроллеры/обработчики HTTP и gRPC
+│   ├── domain/             # Бизнес-логика и модели
+│   │   ├── model/          # Определения структур данных
+│   │   └── repository/     # Интерфейсы репозиториев
 │   ├── middleware/         # HTTP-мидлвары (например, аутентификация)
-│   ├── model/              # Определения структур данных
-│   ├── repository/         # Интерфейсы и фабрики репозиториев
+│   ├── repository/         # Реализации репозиториев (PostgreSQL, Redis)
+│   ├── service/            # Бизнес-сервисы
 │   └── util/               # Вспомогательные утилиты
+├── migrations/             # SQL-скрипты миграций
 ├── pkg/                    # Публичные пакеты (сгенерированный protobuf-код)
 ├── scripts/                # Скрипты для генерации кода
-└── Makefile                # Сборочные команды
+├── test/                   # Тесты
+├── docker-compose.yml      # Конфигурация Docker Compose
+├── go.mod                  # Зависимости Go
+├── go.sum                  # Чек-суммы зависимостей
+├── LICENSE                 # Лицензия
+├── Makefile                # Сборочные команды
+└── README.md               # Документация проекта
 ```
 
 ## Функциональность
@@ -52,8 +68,8 @@ go-notes/
 - Поддержка всех CRUD-операций через gRPC
 
 ### Хранение данных
-- RAM-хранилище для временных данных
-- JSON-хранилище для сохранения данных между запусками
+- PostgreSQL для хранения пользователей и заметок
+- Redis для хранения отозванных токенов и кэширования
 
 ## Запуск приложения
 
@@ -101,6 +117,19 @@ go run cmd/grpc-client/main.go
 ```
 
 Клиент выполнит тестовые операции с gRPC-сервером.
+
+### Запуск с Docker
+
+```bash
+# Запуск PostgreSQL и Redis с помощью Docker Compose
+make docker-up
+
+# Запуск миграций базы данных
+make migrate
+
+# Полный перезапуск с Docker и миграции
+make setup-db
+```
 
 ## Примеры использования API
 
@@ -220,6 +249,10 @@ curl -X DELETE http://localhost:8080/api/notes/{note_id} \
 - `make swag-deps` - установка зависимостей Swagger
 - `make test` - запуск тестов
 - `make build` - сборка приложения
+- `make docker-down-v` - остановка контейнеров и удаление volumes с БД
+- `make docker-up` - запуск сервисов с Docker Compose
+- `make migrate` - запуск миграций базы данных
+- `make setup-db` - полный перезапуск с Docker и запуск миграций
 - `make help` - список всех целей
 
 ## Переменные окружения
@@ -267,19 +300,17 @@ curl -X DELETE http://localhost:8080/api/notes/{note_id} \
 ### Refresh токены
 - `REFRESH_SECRET_KEY` - секретный ключ для подписи Refresh токенов (по умолчанию: refresh_secret_key)
 - `REFRESH_REVOCATION_ENABLED` - включено ли отслеживание отозванных токенов (по умолчанию: true)
-- `REFRESH_REVOCATION_STORE_TYPE` - тип хранилища для отозванных токенов (по умолчанию: memory)
 
 ### Репозиторий
-- `REPO_TYPE` - тип репозитория (json, ram, postgres) (по умолчанию: json)
+- `REPO_TYPE` - тип репозитория (postgres, redis) (по умолчанию: postgres)
 - `REPO_PATH` - путь к файлу/директории для хранения данных (по умолчанию: ./data)
 
 ### Безопасность
 - `PASSWORD_MIN_LENGTH` - минимальная длина пароля (по умолчанию: 8)
 - `MAX_LOGIN_ATTEMPTS` - максимальное количество попыток входа (по умолчанию: 5)
 - `LOGIN_BLOCK_TIME` - время блокировки после неудачных попыток (по умолчанию: 30m)
-- `TOKEN_CLEANUP_INTERVAL` - интервал очистки токенов (по умолчанию: 1h)
 - `BCRYPT_COST_SEC` - стоимость хеширования паролей (по умолчанию: 10)
 
 ### Завершение работы
-- `SHUTDOWN_TIMEOUT` - таймаут завершения работы (по умолчанию: 5s)
+- `SHUTDOWN_TIMEOUT` - таймаут завершения работы (по умолчанию: 25s)
 - `SHUTDOWN_WAIT` - время ожидания перед завершением (по умолчанию: 3s)

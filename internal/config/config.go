@@ -11,17 +11,16 @@ import (
 
 // Config структура для хранения конфигурации приложения
 type Config struct {
-	Env        string           `toml:"env" env:"ENV"`
-	LogLevel   string           `toml:"log_level" env:"LOG_LEVEL"`
-	Server     ServerConfig     `toml:"server"`
-	Auth       AuthConfig       `toml:"auth"`
-	Postgres   PostgresConfig   `toml:"postgres"`
-	Redis      RedisConfig      `toml:"redis"`
-	JWT        JWTConfig        `toml:"jwt"`
-	Refresh    RefreshConfig    `toml:"refresh"`
-	Repository RepositoryConfig `toml:"repository"`
-	Security   SecurityConfig   `toml:"security"`
-	Shutdown   ShutdownConfig   `toml:"shutdown"`
+	Env      string         `toml:"env" env:"ENV"`
+	LogLevel string         `toml:"log_level" env:"LOG_LEVEL"`
+	Server   ServerConfig   `toml:"server"`
+	Auth     AuthConfig     `toml:"auth"`
+	Postgres PostgresConfig `toml:"postgres"`
+	Redis    RedisConfig    `toml:"redis"`
+	JWT      JWTConfig      `toml:"jwt"`
+	Refresh  RefreshConfig  `toml:"refresh"`
+	Security SecurityConfig `toml:"security"`
+	Shutdown ShutdownConfig `toml:"shutdown"`
 }
 
 // ServerConfig содержит настройки сервера
@@ -70,24 +69,15 @@ type JWTConfig struct {
 
 // RefreshConfig содержит настройки Refresh токенов
 type RefreshConfig struct {
-	SecretKey           string `toml:"secret_key" env:"REFRESH_SECRET_KEY"`
-	RevocationEnabled   bool   `toml:"revocation_enabled" env:"REFRESH_REVOCATION_ENABLED"`       // включено ли отслеживание отозванных токенов
-	RevocationStoreType string `toml:"revocation_store_type" env:"REFRESH_REVOCATION_STORE_TYPE"` // тип хранилища для отозванных токенов (например, "memory", "redis", "db")
+	SecretKey         string `toml:"secret_key" env:"REFRESH_SECRET_KEY"`
+	RevocationEnabled bool   `toml:"revocation_enabled" env:"REFRESH_REVOCATION_ENABLED"` // включено ли отслеживание отозванных токенов
 }
 
-// RepositoryConfig содержит настройки репозитория
-type RepositoryConfig struct {
-	Type string `toml:"type" env:"REPO_TYPE"` // "json" или "ram"
-	Path string `toml:"path" env:"REPO_PATH"` // путь к файлу/директории для хранения данных
-}
-
-// SecurityConfig содержит настройки безопасности
 type SecurityConfig struct {
-	PasswordMinLength    int    `toml:"password_min_length" env:"PASSWORD_MIN_LENGTH"`       // минимальная длина пароля
-	MaxLoginAttempts     int    `toml:"max_login_attempts" env:"MAX_LOGIN_ATTEMPTS"`         // максимальное количество попыток входа
-	LoginBlockTime       string `toml:"login_block_time" env:"LOGIN_BLOCK_TIME"`             // время блокировки после неудачных попыток
-	TokenCleanupInterval string `toml:"token_cleanup_interval" env:"TOKEN_CLEANUP_INTERVAL"` // интервал очистки токенов
-	BcryptCost           int    `toml:"bcrypt_cost" env:"BCRYPT_COST_SEC"`                   // стоимость хеширования паролей (дублирует JWT.BcryptCost для удобства)
+	PasswordMinLength int    `toml:"password_min_length" env:"PASSWORD_MIN_LENGTH"` // минимальная длина пароля
+	MaxLoginAttempts  int    `toml:"max_login_attempts" env:"MAX_LOGIN_ATTEMPTS"`   // максимальное количество попыток входа
+	LoginBlockTime    string `toml:"login_block_time" env:"LOGIN_BLOCK_TIME"`       // время блокировки после неудачных попыток
+	BcryptCost        int    `toml:"bcrypt_cost" env:"BCRYPT_COST_SEC"`             // стоимость хеширования паролей (дублирует JWT.BcryptCost для удобства)
 }
 
 // ShutdownConfig содержит настройки завершения работы
@@ -113,6 +103,14 @@ func LoadConfig(configPath string) (*Config, error) {
 
 // loadFromEnv загружает значения из переменных окружения
 func (c *Config) loadFromEnv() {
+	// General
+	if env := os.Getenv("ENV"); env != "" {
+		c.Env = env
+	}
+	if logLevel := os.Getenv("LOG_LEVEL"); logLevel != "" {
+		c.LogLevel = logLevel
+	}
+
 	// Server
 	if port := os.Getenv("SERVER_PORT"); port != "" {
 		c.Server.Port = port
@@ -222,18 +220,6 @@ func (c *Config) loadFromEnv() {
 			c.Refresh.RevocationEnabled = val
 		}
 	}
-	if revocationStoreType := os.Getenv("REFRESH_REVOCATION_STORE_TYPE"); revocationStoreType != "" {
-		c.Refresh.RevocationStoreType = revocationStoreType
-	}
-
-	// Repository
-	if repoType := os.Getenv("REPO_TYPE"); repoType != "" {
-		c.Repository.Type = repoType
-	}
-	if repoPath := os.Getenv("REPO_PATH"); repoPath != "" {
-		c.Repository.Path = repoPath
-	}
-
 	// Security
 	if passwordMinLength := os.Getenv("PASSWORD_MIN_LENGTH"); passwordMinLength != "" {
 		if val, err := strconv.Atoi(passwordMinLength); err == nil {
@@ -247,9 +233,6 @@ func (c *Config) loadFromEnv() {
 	}
 	if loginBlockTime := os.Getenv("LOGIN_BLOCK_TIME"); loginBlockTime != "" {
 		c.Security.LoginBlockTime = loginBlockTime
-	}
-	if tokenCleanupInterval := os.Getenv("TOKEN_CLEANUP_INTERVAL"); tokenCleanupInterval != "" {
-		c.Security.TokenCleanupInterval = tokenCleanupInterval
 	}
 	if bcryptCostSec := os.Getenv("BCRYPT_COST_SEC"); bcryptCostSec != "" {
 		if val, err := strconv.Atoi(bcryptCostSec); err == nil {
@@ -305,20 +288,15 @@ func newDefaultConfig() *Config {
 			RefreshTokenTTL: "168h",
 		},
 		Refresh: RefreshConfig{
-			SecretKey:           "refresh_secret_key",
-			RevocationEnabled:   true,
-			RevocationStoreType: "memory",
-		},
-		Repository: RepositoryConfig{
-			Type: "json",
-			Path: "./data",
+			SecretKey:         "refresh_secret_key",
+			RevocationEnabled: true,
 		},
 		Postgres: PostgresConfig{
 			Host:       "localhost",
 			Port:       5432,
 			Name:       "go_notes",
 			User:       "postgres",
-			Password:   "",
+			Password:   "notes_password",
 			SSLMode:    "disable",
 			PoolSize:   10,
 			Parameters: "",
@@ -335,11 +313,10 @@ func newDefaultConfig() *Config {
 			EnableHTTPS: false,
 		},
 		Security: SecurityConfig{
-			PasswordMinLength:    8,
-			MaxLoginAttempts:     5,
-			LoginBlockTime:       "30m",
-			TokenCleanupInterval: "1h",
-			BcryptCost:           10,
+			PasswordMinLength: 8,
+			MaxLoginAttempts:  5,
+			LoginBlockTime:    "30m",
+			BcryptCost:        10,
 		},
 		Shutdown: ShutdownConfig{
 			Timeout: "25s",
