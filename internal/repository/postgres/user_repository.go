@@ -8,6 +8,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rd2w/go-notes/internal/domain/model"
 	"github.com/rd2w/go-notes/internal/domain/repository"
+	"github.com/rd2w/go-notes/internal/repository/postgres/errors"
 )
 
 // PostgresUserRepository реализация интерфейсов репозитория для пользователей с использованием PostgreSQL
@@ -32,7 +33,7 @@ func (r *PostgresUserRepository) Create(user *model.User) error {
 		user.GetID(), user.GetUsername(), user.GetEmail(), user.GetPassword(), user.GetCreatedAt(), user.GetUpdatedAt())
 
 	if err != nil {
-		return fmt.Errorf("ошибка создания пользователя: %w", err)
+		return fmt.Errorf("%w: %w", errors.ErrUserCreationFailed, err)
 	}
 
 	return nil
@@ -49,7 +50,7 @@ func (r *PostgresUserRepository) GetByID(id string) (*model.User, error) {
 
 	err := row.Scan(&userID, &username, &email, &password, &createdAt, &updatedAt)
 	if err != nil {
-		return nil, fmt.Errorf("ошибка получения пользователя: %w", err)
+		return nil, fmt.Errorf("%w: %w", errors.ErrUserRetrievalFailed, err)
 	}
 
 	user := &model.User{}
@@ -72,7 +73,7 @@ func (r *PostgresUserRepository) Update(user *model.User) error {
 		user.GetUsername(), user.GetEmail(), user.GetPassword(), user.GetUpdatedAt(), user.GetID())
 
 	if err != nil {
-		return fmt.Errorf("ошибка обновления пользователя: %w", err)
+		return fmt.Errorf("%w: %w", errors.ErrUserUpdateFailed, err)
 	}
 
 	return nil
@@ -84,11 +85,11 @@ func (r *PostgresUserRepository) DeleteByID(id string) error {
 
 	commandTag, err := r.db.Exec(ctx, "DELETE FROM users WHERE id = $1", id)
 	if err != nil {
-		return fmt.Errorf("ошибка удаления пользователя: %w", err)
+		return fmt.Errorf("%w: %w", errors.ErrUserDeletionFailed, err)
 	}
 
 	if commandTag.RowsAffected() == 0 {
-		return fmt.Errorf("пользователь с ID %s не найден", id)
+		return fmt.Errorf("%w: %s", errors.ErrUserNotFound, id)
 	}
 
 	return nil
@@ -101,7 +102,7 @@ func (r *PostgresUserRepository) GetAllUsers() ([]*model.User, error) {
 
 	rows, err := r.db.Query(ctx, "SELECT id, username, email, password, created_at, updated_at FROM users ORDER BY created_at DESC")
 	if err != nil {
-		return nil, fmt.Errorf("ошибка получения всех пользователей: %w", err)
+		return nil, fmt.Errorf("%w: %w", errors.ErrAllUsersRetrievalFailed, err)
 	}
 	defer rows.Close()
 
@@ -140,7 +141,7 @@ func (r *PostgresUserRepository) GetUserByEmail(email string) (*model.User, erro
 
 	err := row.Scan(&userID, &username, &emailResult, &password, &createdAt, &updatedAt)
 	if err != nil {
-		return nil, fmt.Errorf("ошибка получения пользователя по email: %w", err)
+		return nil, fmt.Errorf("%w: %w", errors.ErrUserByEmailRetrievalFailed, err)
 	}
 
 	user := &model.User{}
@@ -165,7 +166,7 @@ func (r *PostgresUserRepository) GetUserByUsername(username string) (*model.User
 
 	err := row.Scan(&userID, &usernameResult, &email, &password, &createdAt, &updatedAt)
 	if err != nil {
-		return nil, fmt.Errorf("ошибка получения пользователя по username: %w", err)
+		return nil, fmt.Errorf("%w: %w", errors.ErrUserByUsernameRetrievalFailed, err)
 	}
 
 	user := &model.User{}

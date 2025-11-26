@@ -8,6 +8,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rd2w/go-notes/internal/domain/model"
 	"github.com/rd2w/go-notes/internal/domain/repository"
+	"github.com/rd2w/go-notes/internal/repository/postgres/errors"
 )
 
 // PostgresNoteRepository реализация интерфейсов репозитория для заметок с использованием PostgreSQL
@@ -32,7 +33,7 @@ func (r *PostgresNoteRepository) Create(note *model.Note) error {
 		note.GetID(), note.GetTitle(), note.GetContent(), note.GetUserID(), note.GetCreatedAt(), note.GetUpdatedAt())
 
 	if err != nil {
-		return fmt.Errorf("ошибка создания заметки: %w", err)
+		return fmt.Errorf("%w: %w", errors.ErrNoteCreationFailed, err)
 	}
 
 	return nil
@@ -49,7 +50,7 @@ func (r *PostgresNoteRepository) GetByID(id string) (*model.Note, error) {
 
 	err := row.Scan(&noteID, &title, &content, &userID, &createdAt, &updatedAt)
 	if err != nil {
-		return nil, fmt.Errorf("ошибка получения заметки: %w", err)
+		return nil, fmt.Errorf("%w: %w", errors.ErrNoteRetrievalFailed, err)
 	}
 
 	note := model.NewNote(title, content, userID)
@@ -69,7 +70,7 @@ func (r *PostgresNoteRepository) Update(note *model.Note) error {
 		note.GetTitle(), note.GetContent(), note.GetUserID(), note.GetUpdatedAt(), note.GetID())
 
 	if err != nil {
-		return fmt.Errorf("ошибка обновления заметки: %w", err)
+		return fmt.Errorf("%w: %w", errors.ErrNoteUpdateFailed, err)
 	}
 
 	return nil
@@ -81,11 +82,11 @@ func (r *PostgresNoteRepository) DeleteByID(id string) error {
 
 	commandTag, err := r.db.Exec(ctx, "DELETE FROM notes WHERE id = $1", id)
 	if err != nil {
-		return fmt.Errorf("ошибка удаления заметки: %w", err)
+		return fmt.Errorf("%w: %w", errors.ErrNoteDeletionFailed, err)
 	}
 
 	if commandTag.RowsAffected() == 0 {
-		return fmt.Errorf("заметка с ID %s не найдена", id)
+		return fmt.Errorf("%w: %s", errors.ErrNoteNotFound, id)
 	}
 
 	return nil
@@ -98,7 +99,7 @@ func (r *PostgresNoteRepository) GetAllNotesByUserID(userID string) ([]*model.No
 
 	rows, err := r.db.Query(ctx, "SELECT id, title, content, user_id, created_at, updated_at FROM notes WHERE user_id = $1 ORDER BY created_at DESC", userID)
 	if err != nil {
-		return nil, fmt.Errorf("ошибка получения заметок пользователя: %w", err)
+		return nil, fmt.Errorf("%w: %w", errors.ErrNotesRetrievalByUserFailed, err)
 	}
 	defer rows.Close()
 
@@ -129,7 +130,7 @@ func (r *PostgresNoteRepository) GetListByUserID(userID string, limit, offset in
 
 	rows, err := r.db.Query(ctx, "SELECT id, title, content, user_id, created_at, updated_at FROM notes WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3", userID, limit, offset)
 	if err != nil {
-		return nil, fmt.Errorf("ошибка получения списка заметок пользователя: %w", err)
+		return nil, fmt.Errorf("%w: %w", errors.ErrNotesListRetrievalFailed, err)
 	}
 	defer rows.Close()
 
@@ -161,7 +162,7 @@ func (r *PostgresNoteRepository) GetAllNotes() ([]*model.Note, error) {
 
 	rows, err := r.db.Query(ctx, "SELECT id, title, content, user_id, created_at, updated_at FROM notes ORDER BY created_at DESC")
 	if err != nil {
-		return nil, fmt.Errorf("ошибка получения всех заметок: %w", err)
+		return nil, fmt.Errorf("%w: %w", errors.ErrAllNotesRetrievalFailed, err)
 	}
 	defer rows.Close()
 
