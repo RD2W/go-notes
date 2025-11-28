@@ -127,6 +127,9 @@ make docker-up
 # Запуск миграций базы данных
 make migrate
 
+# Откат всех миграций базы данных
+make cleanup-db
+
 # Полный перезапуск с Docker и миграции
 make setup-db
 ```
@@ -252,6 +255,7 @@ curl -X DELETE http://localhost:8080/api/notes/{note_id} \
 - `make docker-down-v` - остановка контейнеров и удаление volumes с БД
 - `make docker-up` - запуск сервисов с Docker Compose
 - `make migrate` - запуск миграций базы данных
+- `make cleanup-db` - откат всех миграций базы данных
 - `make setup-db` - полный перезапуск с Docker и запуск миграций
 - `make help` - список всех целей
 
