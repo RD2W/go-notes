@@ -75,7 +75,13 @@ migrate:
 setup-db: docker-down-v docker-up
 	@echo "⏳ Waiting for services to be ready..."
 	@sleep 10
-	@migrate
+	@./scripts/migrate.sh up
+
+.PHONY: cleanup-db
+cleanup-db:
+	@echo "🗄️ Cleaning up database (rolling back migrations)..."
+	@chmod +x scripts/migrate.sh
+	@./scripts/migrate.sh down
 
 .PHONY: help
 help:
@@ -90,6 +96,7 @@ help:
 	@echo "  docker-down-v - Stop containers and remove volumes"
 	@echo "  docker-up     - Start services with Docker Compose"
 	@echo "  migrate       - Run database migrations"
+	@echo "  cleanup-db    - Rollback all database migrations"
 	@echo "  setup-db      - Clean start with Docker and run migrations"
 	@echo ""
 	@echo "⚠️ Note: protoc must be installed separately via system package manager"

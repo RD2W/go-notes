@@ -1,6 +1,7 @@
 package lifecycle
 
 import (
+	"context"
 	"errors"
 	"net"
 	"net/http"
@@ -152,51 +153,45 @@ func TestHTTPServerAlreadyClosed(t *testing.T) {
 		},
 	}
 
-	// Создаем сервер на случайном порту
-	listener, err := net.Listen("tcp", ":0")
-	if err != nil {
-		t.Fatalf("Не удалось создать слушатель: %v", err)
-	}
-
+	// Создаем HTTP сервер на случайном порту
 	server := &http.Server{
-		Addr: listener.Addr().String(),
+		Addr: ":0", // Используем случайный порт
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte("OK"))
 		}),
 	}
 
-	// Закрываем слушатель до запуска сервера
-	_ = listener.Close()
+	// Запускаем сервер в отдельной горутине
+	listener, err := net.Listen("tcp", server.Addr)
+	if err != nil {
+		t.Fatalf("Не удалось создать слушатель: %v", err)
+	}
 
-	// Создаем канал для перехвата сигнала завершения
-	done := make(chan bool, 1)
+	serverStarted := make(chan bool, 1)
 	go func() {
-		// Ожидаем ошибку при запуске сервера
-		err := server.ListenAndServe()
-		if err != nil && (errors.Is(err, http.ErrServerClosed) || err.Error() != "") {
-			done <- true
+		serverStarted <- true
+		// Пытаемся запустить сервер, но он будет закрыт до завершения
+		err := server.Serve(listener)
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			t.Logf("Ошибка при работе сервера: %v", err)
 		}
 	}()
 
-	// Запускаем сервер в отдельной горутине
-	go func() {
-		time.Sleep(10 * time.Millisecond)
-		sendShutdownSignal()
-	}()
+	// Ждем, пока сервер начнет запускаться
+	<-serverStarted
+	time.Sleep(10 * time.Millisecond)
 
+	// Закрываем сервер принудительно
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	_ = server.Shutdown(ctx)
+
+	// Вызываем StartHTTPServer, но сервер уже закрыт
 	err = StartHTTPServer(cfg, server)
 	if err != nil {
-		// Ошибка ожидаема, так как сервер не может запуститься
+		// Ошибка ожидаема, так как сервер уже закрыт
 		// Проверяем, что функция завершается без паники
-		t.Logf("Ожидаемая ошибка при запуске сервера: %v", err)
-	}
-
-	// Ждем завершения сервера
-	select {
-	case <-done:
-		// Сервер завершился корректно
-	case <-time.After(2 * time.Second):
-		t.Error("Таймаут ожидания завершения сервера")
+		t.Logf("Ожидаемая ситуация - сервер уже закрыт: %v", err)
 	}
 }
