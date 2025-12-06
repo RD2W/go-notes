@@ -1,0 +1,213 @@
+version: 2
+
+# Определяем проект и его метаданные
+project_name: go-notes
+
+# Определяем, что мы хотим выпускать
+builds:
+  # Сборка grpc-server
+  - id: grpc-server
+    main: ./cmd/grpc-server
+    binary: grpc-server
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    env:
+      - CGO_ENABLED=0
+    gcflags:
+      - all=-trimpath
+    ldflags:
+      - -s -w
+      - -extldflags '-static'
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+    flags:
+      - -a
+    tags:
+      - osusergo
+      - netgo
+      - static
+
+  # Сборка web-server
+  - id: web-server
+    main: ./cmd/web-server
+    binary: web-server
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    env:
+      - CGO_ENABLED=0
+    gcflags:
+      - all=-trimpath
+    ldflags:
+      - -s -w
+      - -extldflags '-static'
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+    flags:
+      - -a
+    tags:
+      - osusergo
+      - netgo
+      - static
+
+# Упаковка артефактов
+# Один архив для каждой комбинации OS/Arch, содержащий оба бинарника (grpc-server и web-server)
+archives:
+  - name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    ids:
+      - grpc-server
+      - web-server
+    files:
+      - LICENSE
+      - README.md
+      - src: config/config.toml
+        dst: config/config.toml
+    format_overrides:
+      - goos: windows
+        formats: ["zip"]
+    formats: ["tar.gz"]
+
+#archives:
+#  - id: grpc-server
+#    name_template: "{{ .ProjectName }}-grpc-server_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+#    ids:
+#      - grpc-server
+#    files:
+#      - LICENSE
+#      - README.md
+#      - src: config/config.toml
+#        dst: config/config.toml
+#    format_overrides:
+#      - goos: windows
+#        formats: ["zip"]
+#    formats: ["tar.gz"]
+#
+#  - id: web-server
+#    name_template: "{{ .ProjectName }}-web-server_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+#    ids:
+#      - web-server
+#    files:
+#      - LICENSE
+#      - README.md
+#      - src: config/config.toml
+#        dst: config/config.toml
+#    format_overrides:
+#      - goos: windows
+#        formats: ["zip"]
+#    formats: ["tar.gz"]
+
+# Docker образы
+dockers_v2:
+  # grpc-server мультиплатформенный образ
+  - id: grpc-server
+    dockerfile: Dockerfile.grpc
+    # Указываем платформы для сборки
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    # Флаги для docker build
+    flags:
+      - --pull
+      - --push
+      - --provenance=false
+      - --sbom=false
+    # Файлы, которые нужно добавить в контекст сборки
+    extra_files:
+      - config/config.toml
+    # Теги для образа
+    images:
+      - "{{ .Env.DOCKER_REGISTRY }}/{{ .ProjectName }}"
+    tags:
+      - "grpc-server-{{ .Version }}"
+      - "grpc-server-latest"
+    # Метки для Docker образа (опционально)
+    labels:
+      org.opencontainers.image.title: "{{.ProjectName}}-grpc-server"
+      org.opencontainers.image.version: "{{.Version}}"
+      org.opencontainers.image.created: "{{.Date}}"
+      org.opencontainers.image.revision: "{{.Commit}}"
+      org.opencontainers.image.source: "https://github.com/rd2w/go-notes"
+      org.opencontainers.image.licenses: "MIT"
+
+  # web-server мультиплатформенный образ
+  - id: web-server
+    dockerfile: Dockerfile.web
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    flags:
+      - --pull
+      - --push
+      - --provenance=false
+      - --sbom=false
+    # Файлы, которые нужно добавить в контекст сборки
+    extra_files:
+      - config/config.toml
+    images:
+      - "{{ .Env.DOCKER_REGISTRY }}/{{ .ProjectName }}"
+    tags:
+      - "web-server-{{ .Version }}"
+      - "web-server-latest"
+    labels:
+      org.opencontainers.image.title: "{{.ProjectName}}-web-server"
+      org.opencontainers.image.version: "{{.Version}}"
+      org.opencontainers.image.created: "{{.Date}}"
+      org.opencontainers.image.revision: "{{.Commit}}"
+      org.opencontainers.image.source: "https://github.com/rd2w/go-notes"
+      org.opencontainers.image.licenses: "MIT"
+
+checksum:
+  name_template: "checksums.txt"
+
+sboms:
+  - artifacts: archive
+
+# Проверка обновлений
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^Merge pull request"  # ← Убирает Merge PR
+      - "^Merge branch"        # ← Убирает Merge branch
+      - "^$"                   # ← Убирает пустые коммиты
+  groups:
+    - title: New Features
+      regexp: "^.*(?i)(feat|feature)[(:].*$"
+      order: 0
+    - title: Bug Fixes
+      regexp: "^.*(?i)(fix|bug)[(:].*$"
+      order: 1
+    - title: Build System
+      regexp: "^.*(?i)build[(:].*$"
+      order: 2
+    - title: Documentation
+      regexp: "^.*(?i)(doc|docs)[(:].*$"
+      order: 3
+    - title: CI/CD
+      regexp: "^.*(?i)ci[(:].*$"
+      order: 4
+    - title: Tests
+      regexp: "^.*(?i)test[(:].*$"
+      order: 5
+    - title: Other Changes
+      order: 999
+
+# Публикация в GitHub Releases
+release:
+  github:
+    owner: RD2W
+    name: go-notes
+  name_template: "v{{.Version}}"
+  draft: false
+  prerelease: auto # Автоматически помечает как pre-release для тегов с v* (например v1.0.0-rc1)

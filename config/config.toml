@@ -1,12 +1,12 @@
 # Пример конфигурационного файла для Go Notes приложения
-env = "development"               # Окружение (development, production, staging)
-log_level = "debug"               # Уровень логирования
+env = "production"                # Окружение (development, production, staging)
+log_level = "info"                # Уровень логирования
 
 [server]
 port = ":8080"                    # Порт для HTTP сервера
 grpc_port = ":5051"               # Порт для gRPC сервера
-read_timeout = 15                 # Таймаут чтения запроса в секундах
-write_timeout = 15                # Таймаут записи ответа в секундах
+read_timeout = 5                  # Таймаут чтения запроса в секундах
+write_timeout = 5                 # Таймаут записи ответа в секундах
 
 [auth]
 enable_https = false              # Включить HTTPS (в настоящее время не используется в приложении)

@@ -7,9 +7,19 @@ import (
 	"github.com/rd2w/go-notes/internal/config"
 )
 
+// Переменные для версионирования, заполняются при сборке
+var (
+	version string = "dev"
+	commit  string = "unknown"
+	date    string = "unknown"
+)
+
 func main() {
+	// Выводим информацию о версии
+	log.Printf("Запуск gRPC-сервера. Версия: %s, Коммит: %s, Дата сборки: %s", version, commit, date)
+
 	// Загружаем конфигурацию
-	cfg, err := config.LoadConfig("config/config_dev.toml")
+	cfg, err := config.LoadConfig("config/config.toml")
 	if err != nil {
 		log.Fatalf("Ошибка загрузки конфигурации: %v", err)
 	}
