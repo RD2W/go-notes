@@ -1,0 +1,19 @@
+# Исключаем файлы и директории, не нужные для сборки
+.git
+.gitignore
+README.md
+LICENSE
+*.md
+test/
+data/
+dist/
+Dockerfile*
+.dockerignore
+.releaserc
+.github/
+.idea/
+.vscode/
+*.local
+*.tmp
+*.log
+.DS_Store

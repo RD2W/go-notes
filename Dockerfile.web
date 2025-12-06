@@ -1,0 +1,35 @@
+FROM alpine:latest
+
+# Устанавливаем только ca-certificates для HTTPS и tzdata для корректной работы с временными зонами
+RUN apk --no-cache add ca-certificates tzdata && \
+    update-ca-certificates && \
+    ln -sf /usr/share/zoneinfo/Europe/Moscow /etc/localtime && \
+    echo "Europe/Moscow" > /etc/timezone
+
+# Создаем пользователя для безопасности
+RUN addgroup -g 1000 appuser && \
+    adduser -u 1000 -G appuser -D appuser
+
+WORKDIR /app
+
+# Создаем структуру директорий
+RUN mkdir -p /app/config
+
+# Копируем скомпилированное приложение из стадии сборки
+ARG TARGETPLATFORM
+COPY --chown=appuser:appuser $TARGETPLATFORM/web-server /app/web-server
+
+# Копируем конфигурационный файл
+COPY --chown=appuser:appuser config/config.toml /app/config/config.toml
+
+# Устанавливаем исполняемый бит
+RUN chmod +x /app/web-server
+
+# Меняем пользователя на непривилегированного
+USER appuser
+
+# Устанавливаем порт web-server
+EXPOSE 8080
+
+# Устанавливаем точку входа
+ENTRYPOINT ["/app/web-server"]

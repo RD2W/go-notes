@@ -1,0 +1,34 @@
+[Unit]
+Description=Go Notes gRPC Server
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=go-notes
+Group=go-notes
+WorkingDirectory=/opt/go-notes
+ExecStart=/opt/go-notes/grpc-server
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=go-notes-grpc
+
+# Environment variables for configuration
+Environment=ENV=production
+Environment=LOG_LEVEL=info
+Environment=GRPC_PORT=:5051
+Environment=POSTGRES_HOST=localhost
+Environment=POSTGRES_PORT=5432
+Environment=POSTGRES_NAME=go_notes
+Environment=POSTGRES_USER=postgres
+Environment=POSTGRES_PASSWORD=
+Environment=REDIS_HOST=localhost
+Environment=REDIS_PORT=6379
+Environment=JWT_SECRET_KEY=
+Environment=REFRESH_SECRET_KEY=
+
+[Install]
+WantedBy=multi-user.target

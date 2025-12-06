@@ -1,0 +1,522 @@
+basePath: /api
+definitions:
+  http.createNoteRequest:
+    properties:
+      content:
+        type: string
+      title:
+        type: string
+    required:
+    - content
+    - title
+    type: object
+  http.createUserRequest:
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+      username:
+        type: string
+    required:
+    - email
+    - password
+    - username
+    type: object
+  http.loginRequest:
+    properties:
+      password:
+        type: string
+      username:
+        type: string
+    required:
+    - password
+    - username
+    type: object
+  http.loginResponse:
+    properties:
+      access_token:
+        type: string
+      refresh_token:
+        type: string
+      token_type:
+        type: string
+    type: object
+  http.logoutRequest:
+    properties:
+      refresh_token:
+        type: string
+    required:
+    - refresh_token
+    type: object
+  http.logoutResponse:
+    properties:
+      message:
+        type: string
+      success:
+        type: boolean
+    type: object
+  http.refreshRequest:
+    properties:
+      refresh_token:
+        type: string
+    required:
+    - refresh_token
+    type: object
+  http.refreshResponse:
+    properties:
+      access_token:
+        type: string
+      refresh_token:
+        type: string
+      token_type:
+        type: string
+    type: object
+  http.validateRequest:
+    properties:
+      token:
+        type: string
+    required:
+    - token
+    type: object
+  http.validateResponse:
+    properties:
+      expires:
+        type: integer
+      username:
+        type: string
+      valid:
+        type: boolean
+    type: object
+  model.Note:
+    type: object
+  model.User:
+    type: object
+host: localhost:8080
+info:
+  contact: {}
+  description: API для управления заметками и пользователями
+  title: Go Notes API
+  version: "1.0"
+paths:
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Аутентифицирует пользователя и возвращает access и refresh токены
+      parameters:
+      - description: Учетные данные
+        in: body
+        name: credentials
+        required: true
+        schema:
+          $ref: '#/definitions/http.loginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.loginResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Аутентификация пользователя
+      tags:
+      - auth
+  /auth/logout:
+    post:
+      consumes:
+      - application/json
+      description: Выходит пользователя и отзывает refresh токен
+      parameters:
+      - description: Данные для выхода
+        in: body
+        name: logoutRequest
+        required: true
+        schema:
+          $ref: '#/definitions/http.logoutRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.logoutResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Выход пользователя
+      tags:
+      - auth
+  /auth/refresh:
+    post:
+      consumes:
+      - application/json
+      description: Обновляет access и refresh токены по старому refresh токену
+      parameters:
+      - description: Запрос на обновление токенов
+        in: body
+        name: refreshRequest
+        required: true
+        schema:
+          $ref: '#/definitions/http.refreshRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.refreshResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Обновление токенов
+      tags:
+      - auth
+  /auth/validate:
+    post:
+      consumes:
+      - application/json
+      description: Проверяет валидность предоставленного токена
+      parameters:
+      - description: Запрос на проверку токена
+        in: body
+        name: validateRequest
+        required: true
+        schema:
+          $ref: '#/definitions/http.validateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.validateResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Проверка токена
+      tags:
+      - auth
+  /notes:
+    get:
+      description: Возвращает список всех заметок
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/model.Note'
+            type: array
+      security:
+      - BearerAuth: []
+      summary: Получить все заметки
+      tags:
+      - notes
+    post:
+      consumes:
+      - application/json
+      description: Создает новую заметку с указанными заголовком и содержимым
+      parameters:
+      - description: Заметка
+        in: body
+        name: note
+        required: true
+        schema:
+          $ref: '#/definitions/http.createNoteRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/model.Note'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Создать новую заметку
+      tags:
+      - notes
+  /notes/{id}:
+    delete:
+      description: Удаляет заметку с указанным ID
+      parameters:
+      - description: ID заметки
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Удалить заметку
+      tags:
+      - notes
+    get:
+      description: Возвращает заметку по указанному ID
+      parameters:
+      - description: ID заметки
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.Note'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Получить заметку по ID
+      tags:
+      - notes
+    put:
+      consumes:
+      - application/json
+      description: Обновляет заметку с указанным ID
+      parameters:
+      - description: ID заметки
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Обновленная заметка
+        in: body
+        name: note
+        required: true
+        schema:
+          $ref: '#/definitions/model.Note'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.Note'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Обновить заметку
+      tags:
+      - notes
+  /users:
+    get:
+      description: Возвращает список всех пользователей
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/model.User'
+            type: array
+      summary: Получить всех пользователей
+      tags:
+      - users
+    post:
+      consumes:
+      - application/json
+      description: Создает нового пользователя с указанными данными
+      parameters:
+      - description: Пользователь
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/http.createUserRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/model.User'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Создать нового пользователя
+      tags:
+      - users
+  /users/{id}:
+    delete:
+      description: Удаляет пользователя с указанным ID
+      parameters:
+      - description: ID пользователя
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Удалить пользователя
+      tags:
+      - users
+    get:
+      description: Возвращает пользователя по указанному ID
+      parameters:
+      - description: ID пользователя
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.User'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Получить пользователя по ID
+      tags:
+      - users
+    put:
+      consumes:
+      - application/json
+      description: Обновляет пользователя с указанным ID
+      parameters:
+      - description: ID пользователя
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Обновленный пользователь
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/model.User'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.User'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Обновить пользователя
+      tags:
+      - users
+securityDefinitions:
+  BearerAuth:
+    description: JWT Authorization header using the Bearer scheme
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

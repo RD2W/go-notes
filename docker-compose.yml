@@ -1,0 +1,61 @@
+services:
+  postgres:
+    image: postgres:18
+    container_name: go-notes-postgres
+    environment:
+      POSTGRES_DB: go_notes
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: notes_password
+      POSTGRES_ROOT_PASSWORD: notes_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./data/postgres:/var/lib/postgresql
+    networks:
+      - go-notes-network
+
+  redis:
+    image: redis:8-alpine
+    container_name: go-notes-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./data/redis:/data
+    networks:
+      - go-notes-network
+
+  web-server:
+    image: rd2w/go-notes:web-server-latest
+    container_name: go-notes-web-server
+    ports:
+      - "8080:8080"
+    environment:
+      - SERVER_PORT=:8080
+      - POSTGRES_HOST=go-notes-postgres
+      - REDIS_HOST=go-notes-redis
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - go-notes-network
+    restart: on-failure
+
+  grpc-server:
+    image: rd2w/go-notes:grpc-server-latest
+    container_name: go-notes-grpc-server
+    ports:
+      - "5051:5051"
+    environment:
+      - GRPC_PORT=:5051
+      - POSTGRES_HOST=go-notes-postgres
+      - REDIS_HOST=go-notes-redis
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - go-notes-network
+    restart: on-failure
+
+networks:
+  go-notes-network:
+    driver: bridge
