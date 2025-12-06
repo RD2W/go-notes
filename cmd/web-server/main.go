@@ -30,9 +30,9 @@ func main() {
 	log.Printf("Запуск веб-сервера. Версия: %s, Коммит: %s, Дата сборки: %s", version, commit, date)
 
 	// Загружаем конфигурацию из файла
-	cfg, err := config.LoadConfig("./config/config_dev.toml")
+	cfg, err := config.LoadConfig("./config/config.toml")
 	if err != nil {
-		log.Printf("Предупреждение: не удалось загрузить конфигурацию из config_dev.toml: %v", err)
+		log.Printf("Предупреждение: не удалось загрузить конфигурацию из config.toml: %v", err)
 		log.Println("Используем конфигурацию по умолчанию")
 		cfg = config.NewDefaultConfigWithValues()
 	}

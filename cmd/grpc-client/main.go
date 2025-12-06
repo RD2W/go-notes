@@ -9,9 +9,9 @@ import (
 
 func main() {
 	// Загружаем конфигурацию
-	cfg, err := config.LoadConfig("config/config_dev.toml")
+	cfg, err := config.LoadConfig("config/config.toml")
 	if err != nil {
-		log.Printf("Предупреждение: не удалось загрузить конфигурацию из config_dev.toml: %v", err)
+		log.Printf("Предупреждение: не удалось загрузить конфигурацию из config.toml: %v", err)
 		log.Println("Используем конфигурацию по умолчанию")
 		cfg = config.NewDefaultConfigWithValues()
 	}

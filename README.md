@@ -2,7 +2,8 @@
 
 Репозиторий для изучения языка Go, демонстрирующий создание веб-сервера и gRPC-сервера с возможностью управления заметками и пользователями.
 
-[![Go Version](https://img.shields.io/badge/Go-1.25+-blue.svg)](https://golang.org)
+[![Release](https://img.shields.io/github/v/release/RD2W/go-notes.svg?label=Release)](https://github.com/RD2W/go-notes/releases/latest)
+[![Go Version](https://img.shields.io/badge/Go-1.25.4-blue.svg)](https://golang.org)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Go Test Coverage](https://img.shields.io/badge/Coverage-Test%20Coverage-1abc9c.svg)](https://golang.org)
 ![Tests](https://github.com/RD2W/go-notes/actions/workflows/branch_merges.yml/badge.svg)
@@ -108,7 +109,7 @@ go run cmd/web-server/main.go
 go run cmd/grpc-server/main.go
 ```
 
-Сервер будет доступен по адресу `localhost:50051`.
+Сервер будет доступен по адресу `localhost:5051`.
 
 ### Запуск gRPC-клиента
 
@@ -269,7 +270,7 @@ curl -X DELETE http://localhost:8080/api/notes/{note_id} \
 
 ### Сервер
 - `SERVER_PORT` - порт для HTTP сервера (по умолчанию: :8080)
-- `GRPC_PORT` - порт для gRPC сервера (по умолчанию: :50051)
+- `GRPC_PORT` - порт для gRPC сервера (по умолчанию: :5051)
 - `SERVER_READ_TIMEOUT` - таймаут чтения запроса в секундах (по умолчанию: 15)
 - `SERVER_WRITE_TIMEOUT` - таймаут записи ответа в секундах (по умолчанию: 15)
 

@@ -19,7 +19,7 @@ SyslogIdentifier=go-notes-grpc
 # Environment variables for configuration
 Environment=ENV=production
 Environment=LOG_LEVEL=info
-Environment=SERVER_GRPC_PORT=:50051
+Environment=GRPC_PORT=:5051
 Environment=POSTGRES_HOST=localhost
 Environment=POSTGRES_PORT=5432
 Environment=POSTGRES_NAME=go_notes

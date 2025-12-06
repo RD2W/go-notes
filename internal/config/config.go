@@ -276,7 +276,7 @@ func newDefaultConfig() *Config {
 		LogLevel: "info",
 		Server: ServerConfig{
 			Port:         ":8080",
-			GRPCPort:     ":50051",
+			GRPCPort:     ":5051",
 			ReadTimeout:  15,
 			WriteTimeout: 15,
 		},
